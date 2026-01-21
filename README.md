@@ -1,10 +1,9 @@
 # NA Forays Schedule Bot
 
-A Discord bot that displays FFXIV NA datacenter raid schedules (Baldesion Arsenal, Forked Tower, Delubrum Reginae Savage) using Discord's components_v2 containers.
+A Discord bot that displays FFXIV NA datacenter raid schedules (Baldesion Arsenal, Forked Tower, Delubrum Reginae Savage) from participating host servers using Discord's components_v2 containers.
 
 ## Features
 
-- **Real-time schedule display** from multiple host servers
 - **Server-specific configuration** (choose which host servers to display)
 - **Automatic updates** every 60 seconds with hash-based change detection
 - **Multi-server deployment** support with whitelist/blacklist system
@@ -23,7 +22,10 @@ A Discord bot that displays FFXIV NA datacenter raid schedules (Baldesion Arsena
 - MariaDB/MySQL database with read access to schedule aggregator table
 - Discord Bot Token with appropriate permissions
 
-## Setup
+## Hosted Bot Setup
+
+<details>
+<summary>Click to expand Setup instructions</summary>
 
 ### 1. Install Dependencies
 
@@ -143,6 +145,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 For private deployment, add your Discord server to the whitelist:
 
 Set WHITELIST_ENABLED=TRUE in .env
+
 ```sql
 INSERT INTO na_bot_whitelisted_guilds (guild_id, guild_name, added_by, is_active)
 VALUES ('YOUR_SERVER_ID', 'Your Server Name', 'system', 1);
@@ -182,6 +185,8 @@ Response includes:
 - Bot status
 - Database connectivity
 - Uptime information
+
+</details>
 
 ## Commands
 
