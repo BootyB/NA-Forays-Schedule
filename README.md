@@ -142,7 +142,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 For private deployment, add your Discord server to the whitelist:
 
-Set ENABLE_WHITELIST=TRUE in .env
+Set WHITELIST_ENABLED=TRUE in .env
 ```sql
 INSERT INTO na_bot_whitelisted_guilds (guild_id, guild_name, added_by, is_active)
 VALUES ('YOUR_SERVER_ID', 'Your Server Name', 'system', 1);
