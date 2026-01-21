@@ -1,0 +1,35 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: NA_ForaysSchedule
+Upstream-Contact: BootyB
+Source: https://github.com/BootyB/NA_ForaysSchedule
+
+# Binary assets (game content)
+Files: assets/*.avif
+Copyright: Square Enix Co., Ltd.
+License: LicenseRef-SquareEnix-GameContent
+Comment: Game assets from FINAL FANTASY XIV used for informational purposes
+
+# Data files
+Files: data/*.json
+Copyright: 2024-2026 BootyB
+License: GPL-3.0-or-later
+
+# Database files
+Files: database/*.sql
+Copyright: 2024-2026 BootyB
+License: GPL-3.0-or-later
+
+# Configuration files
+Files: ecosystem.config.js package.json
+Copyright: 2024-2026 BootyB
+License: GPL-3.0-or-later
+
+# Documentation
+Files: *.md
+Copyright: 2024-2026 BootyB
+License: GPL-3.0-or-later
+
+# Text files
+Files: scripts/*.txt
+Copyright: 2024-2026 BootyB
+License: GPL-3.0-or-later

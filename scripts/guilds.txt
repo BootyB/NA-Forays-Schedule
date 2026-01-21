@@ -1,0 +1,8 @@
+# Whitelist Guilds
+# Format: guild_id "guild_name" added_by
+# Lines starting with # are ignored
+
+# Example entries (replace with your actual guild IDs):
+# 1234567890 "CAFE" AdminName
+# 9876543210 "ABBA+" AdminName
+# 1111111111 "Field Op Enjoyers" AdminName

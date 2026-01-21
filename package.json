@@ -1,0 +1,25 @@
+{
+  "name": "na-schedule-bot",
+  "version": "1.0.0",
+  "description": "Discord bot for displaying FFXIV NA datacenter raid schedules",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "deploy": "node deploy-commands.js",
+    "dev": "node index.js",
+    "migrate": "node database/migrate.js"
+  },
+  "keywords": ["discord", "ffxiv", "raid", "schedule"],
+  "author": "",
+  "license": "GPL-3.0",
+  "dependencies": {
+    "discord.js": "^14.14.0",
+    "mariadb": "^3.2.0",
+    "dotenv": "^16.3.1",
+    "luxon": "^3.4.0",
+    "winston": "^3.11.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
