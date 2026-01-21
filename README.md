@@ -211,6 +211,9 @@ After initial setup, use `/na-schedule` again to:
 
 ## Deployment
 
+<details>
+<summary>Click to expand Deployment options</summary>
+
 ### Using PM2 (Recommended)
 
 ```bash
@@ -263,7 +266,12 @@ docker build -t na-schedule-bot .
 docker run -d --env-file .env --name na-schedule-bot na-schedule-bot
 ```
 
+</details>
+
 ## Security
+
+<details>
+<summary>Click to expand Security features</summary>
 
 - **AES-256-GCM Encryption**: Guild IDs, names, and configuration encrypted at rest
 - **Encrypted State Management**: Schedule cache uses encrypted JSON storage
@@ -280,7 +288,12 @@ docker run -d --env-file .env --name na-schedule-bot na-schedule-bot
 - `scripts/batch-add-whitelist.js` - Bulk whitelist operations
 - `scripts/check-encryption.js` - Verify encryption integrity
 
+</details>
+
 ## Troubleshooting
+
+<details>
+<summary>Click to expand Troubleshooting guide</summary>
 
 ### Bot doesn't respond to commands
 
@@ -316,7 +329,12 @@ docker run -d --env-file .env --name na-schedule-bot na-schedule-bot
 3. If migrating from plaintext, run the encryption migration script
 4. Check that database columns are expanded (run migrations)
 
+</details>
+
 ## Architecture
+
+<details>
+<summary>Click to expand Architecture details</summary>
 
 ### Data Flow
 
@@ -341,6 +359,8 @@ docker run -d --env-file .env --name na-schedule-bot na-schedule-bot
 - **Commands**: Discord slash command handlers
 - **Events**: Discord event listeners
 - **Utils**: Encryption, logging, validation, rate limiting
+
+</details>
 
 ## License
 
