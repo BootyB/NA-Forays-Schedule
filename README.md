@@ -99,6 +99,7 @@ Edit `.env` with your values:
 DISCORD_TOKEN=your_bot_token_here
 DISCORD_CLIENT_ID=your_client_id_here
 BOT_OWNER_ID=your_discord_user_id_here
+DEV_SERVER_ID=your_dev_discord_server_id_here
 
 # Database Configuration
 DB_HOST=127.0.0.1
@@ -106,17 +107,24 @@ DB_PORT=3306
 DB_NAME=your_database_name
 DB_USER=your_database_user
 DB_PASSWORD=your_database_password
-DB_TABLE_NAME=your_schedule_table_name
 
-# Encryption (REQUIRED)
-ENCRYPTION_KEY=your_64_character_hex_key_here
+#Source Database & Table Names
+DB_SOURCE_NAME=your_source_db_name_here
+DB_TABLE_NAME=your_schedule_table_name_here
 
 # Environment
-NODE_ENV=production
-LOG_LEVEL=info
+NODE_ENV=production_or_dev
+LOG_LEVEL=info_or_debug
+IS_DEV_BOT=true_or_false
+
+#Whitelist Configuration
+WHITELIST_ENABLED=true_or_false
 
 # Optional: Health Check Port
 HEALTH_PORT=3000
+
+# Encryption (REQUIRED)
+ENCRYPTION_KEY=your_64_character_hex_key_here
 ```
 
 **Important Environment Variables:**
@@ -124,7 +132,7 @@ HEALTH_PORT=3000
 - `DISCORD_TOKEN`: Get from [Discord Developer Portal](https://discord.com/developers/applications)
 - `DISCORD_CLIENT_ID`: Same location as bot token
 - `BOT_OWNER_ID`: Your Discord user ID (right-click your name with Developer Mode enabled)
-- `DB_NAME`: Name of the database containing schedule data
+- `DB_SOURCE_NAME`: Name of the database containing schedule data
 - `DB_TABLE_NAME`: Name of the table with run aggregator data
 - `ENCRYPTION_KEY`: **REQUIRED** - 64 hex character (32 byte) encryption key
 
@@ -142,7 +150,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 ### 4. Whitelist Your Server
 
-For private deployment, add your Discord server to the whitelist:
+For private deployment, add your Discord server to the whitelist if needed:
 
 Set WHITELIST_ENABLED=TRUE in .env
 
@@ -279,7 +287,6 @@ docker run -d --env-file .env --name na-schedule-bot na-schedule-bot
 - **Input Validation**: All user inputs are validated before database operations
 - **Access Control**: Whitelist (beta) and blacklist (production) systems
 - **Permissions**: Commands require appropriate Discord permissions (Manage Server)
-- **Secure Key Storage**: Environment-based encryption key management
 
 **Management Tools:**
 
@@ -341,7 +348,7 @@ docker run -d --env-file .env --name na-schedule-bot na-schedule-bot
 1. **Schedule Retrieval**: Bot queries source database for upcoming runs
 2. **Change Detection**: Hash-based comparison with encrypted state cache
 3. **Encryption**: Sensitive data encrypted before database storage
-4. **Update Delivery**: Discord schedules updated via components_v2 containers
+4. **Update Delivery**: Discord schedules updated via components_v2 containers (60s)
 5. **State Caching**: Encrypted state saved to prevent duplicate updates
 
 ### Encryption Implementation
