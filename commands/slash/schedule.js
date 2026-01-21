@@ -44,7 +44,7 @@ async function showSetupWizard(interaction) {
   const container = new ContainerBuilder();
 
   const headerText = 
-    `## 🎉 Welcome to NA Schedule Bot Setup!\n\n` +
+    `## 🎉 Welcome to NA Forays Schedule Bot Setup!\n\n` +
     `This wizard will help you configure schedule displays for your server.\n\n` +
     `**Step 1: Select Raid Types**\n` +
     `Choose which raid schedules you want to display:\n` +

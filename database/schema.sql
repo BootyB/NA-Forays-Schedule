@@ -1,4 +1,4 @@
--- database/schema.sql - Database schema for NA Schedule Bot
+-- database/schema.sql - Database schema for NA Forays Schedule Bot
 
 -- Server configurations table
 CREATE TABLE IF NOT EXISTS `na_bot_server_configs` (

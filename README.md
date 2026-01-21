@@ -1,4 +1,4 @@
-# NA Schedule Bot
+# NA Forays Schedule Bot
 
 A Discord bot that displays FFXIV NA datacenter raid schedules (Baldesion Arsenal, Forked Tower, Delubrum Reginae Savage) using Discord's components_v2 containers.
 
@@ -9,13 +9,12 @@ A Discord bot that displays FFXIV NA datacenter raid schedules (Baldesion Arsena
 - **Automatic updates** every 60 seconds with hash-based change detection
 - **Multi-server deployment** support with whitelist/blacklist system
 - **Customizable embed colors** per raid type
-- **AES-256-GCM encryption** for sensitive configuration data
+- **AES-256-GCM encryption** for all configuration data
 - **Encrypted state management** for schedule caching
 - **Rate limiting** to prevent abuse
 - **Health check endpoint** for monitoring
 - **Database migrations** for easy updates
 - **Comprehensive error handling and logging**
-- **Secure guild management** with encryption-protected identifiers
 
 ## Requirements
 
@@ -143,6 +142,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 For private deployment, add your Discord server to the whitelist:
 
+Set ENABLE_WHITELIST=TRUE in .env
 ```sql
 INSERT INTO na_bot_whitelisted_guilds (guild_id, guild_name, added_by, is_active)
 VALUES ('YOUR_SERVER_ID', 'Your Server Name', 'system', 1);
@@ -150,25 +150,7 @@ VALUES ('YOUR_SERVER_ID', 'Your Server Name', 'system', 1);
 
 To get your server ID: Right-click your server icon with Developer Mode enabled > Copy Server ID
 
-### 5. Run Database Migrations
-
-Apply encryption support and other schema updates:
-
-```bash
-node database/migrate.js
-```
-
-This will:
-- Expand columns to accommodate encrypted data
-- Create the blacklist table
-- Optionally encrypt existing plaintext data
-
-**Migration Scripts Available:**
-- `002_add_encryption_support.sql` - Expands columns for encryption
-- `003_create_blacklist_table.sql` - Creates blacklist table
-- `encrypt_existing_data.js` - Encrypts existing plaintext data
-
-### 6. Deploy Slash Commands
+### 5. Deploy Slash Commands
 
 ```bash
 npm run deploy
@@ -176,7 +158,7 @@ npm run deploy
 
 This registers the `/na-schedule` command with Discord.
 
-### 7. Start the Bot
+### 6. Start the Bot
 
 Development mode:
 ```bash
@@ -210,7 +192,7 @@ Response includes:
 After running `/na-schedule` for the first time, follow the wizard to:
 
 1. **Select Raid Types** - Choose which schedules to display (BA, FT, DRS)
-2. **Choose Channels** - Select dedicated channels for each raid type
+2. **Choose Channels** - Select dedicated channels for each raid type, bot checks if it has permissions and responds if not
 3. **Select Host Servers** - Pick which host servers' runs to display
 4. **Confirm Setup** - Review and confirm your configuration
 
@@ -219,7 +201,7 @@ After initial setup, use `/na-schedule` again to:
 - Change enabled host servers
 - Toggle auto-updates
 - Manually refresh schedules
-- Customize embed colors
+- Customize container colors
 - Reset configuration
 
 ## Deployment
@@ -239,7 +221,7 @@ Create `/etc/systemd/system/na-schedule-bot.service`:
 
 ```ini
 [Unit]
-Description=NA Schedule Discord Bot
+Description=NA Forays Schedule Discord Bot
 After=network.target
 
 [Service]
@@ -278,14 +260,13 @@ docker run -d --env-file .env --name na-schedule-bot na-schedule-bot
 
 ## Security
 
-- **AES-256-GCM Encryption**: All sensitive configuration data is encrypted at rest
+- **AES-256-GCM Encryption**: Guild IDs, names, and configuration encrypted at rest
 - **Encrypted State Management**: Schedule cache uses encrypted JSON storage
 - **Rate Limiting**: Built-in rate limiting prevents command/interaction spam
 - **Input Validation**: All user inputs are validated before database operations
 - **Access Control**: Whitelist (beta) and blacklist (production) systems
 - **Permissions**: Commands require appropriate Discord permissions (Manage Server)
 - **Secure Key Storage**: Environment-based encryption key management
-- **Data Protection**: Guild IDs, names, and configuration encrypted in database
 
 **Management Tools:**
 
@@ -293,8 +274,6 @@ docker run -d --env-file .env --name na-schedule-bot na-schedule-bot
 - `scripts/manage-blacklist.js` - Manage blacklisted servers
 - `scripts/batch-add-whitelist.js` - Bulk whitelist operations
 - `scripts/check-encryption.js` - Verify encryption integrity
-
-For security issues, please see [SECURITY.md](SECURITY.md)
 
 ## Troubleshooting
 
@@ -332,13 +311,6 @@ For security issues, please see [SECURITY.md](SECURITY.md)
 3. If migrating from plaintext, run the encryption migration script
 4. Check that database columns are expanded (run migrations)
 
-### Database schema errors after update
-
-1. Run database migrations: `node database/migrate.js`
-2. Check migration status in `na_bot_migration_history` table
-3. Manually apply missing migrations from `database/migrations/`
-4. Verify column sizes support encrypted data (see migration 002)
-
 ## Architecture
 
 ### Data Flow
@@ -346,7 +318,7 @@ For security issues, please see [SECURITY.md](SECURITY.md)
 1. **Schedule Retrieval**: Bot queries source database for upcoming runs
 2. **Change Detection**: Hash-based comparison with encrypted state cache
 3. **Encryption**: Sensitive data encrypted before database storage
-4. **Update Delivery**: Discord embeds updated via components_v2 containers
+4. **Update Delivery**: Discord schedules updated via components_v2 containers
 5. **State Caching**: Encrypted state saved to prevent duplicate updates
 
 ### Encryption Implementation

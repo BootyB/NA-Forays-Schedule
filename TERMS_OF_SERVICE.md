@@ -4,15 +4,15 @@
 
 ## 1. About This Document
 
-These Terms of Service ("Terms") govern your use of the **hosted instance** of the NA Schedule Bot service (the "Service"). These Terms apply specifically to using our publicly hosted bot service and do not restrict your rights under the software license.
+These Terms of Service ("Terms") govern your use of the **hosted instance** of the NA Forays Schedule Bot service (the "Service"). These Terms apply specifically to using our publicly hosted bot service and do not restrict your rights under the software license.
 
 ## 2. Description of Service
 
-The NA Schedule Bot is a Discord bot that displays Final Fantasy XIV (FFXIV) North American datacenter raid schedules, including Baldesion Arsenal, Forked Tower, and Delubrum Reginae Savage events. The Bot provides real-time schedule information from multiple host servers.
+The NA Forays Schedule Bot is a Discord bot that displays Final Fantasy XIV (FFXIV) North American datacenter raid schedules, including Baldesion Arsenal, Forked Tower, and Delubrum Reginae Savage events. The Bot provides real-time schedule information from multiple host servers.
 
 ## 3. Software License
 
-The NA Schedule Bot software is free and open-source software licensed under the **GNU General Public License v3.0 (GPL-3.0)**. 
+The NA Forays Schedule Bot software is free and open-source software licensed under the **GNU General Public License v3.0 (GPL-3.0)**. 
 
 **Your GPL-3.0 Rights:**
 - Use the software for any purpose

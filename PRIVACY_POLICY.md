@@ -4,9 +4,9 @@
 
 ## 1. Introduction and Scope
 
-This Privacy Policy describes how our **hosted instance** of the NA Schedule Bot service (the "Service") collects, uses, and protects information when you use our hosted Service on Discord.
+This Privacy Policy describes how our **hosted instance** of the NA Forays Schedule Bot service (the "Service") collects, uses, and protects information when you use our hosted Service on Discord.
 
-**Important:** This Privacy Policy applies only to our hosted Service. The NA Schedule Bot software itself is open-source under GPL-3.0, and if you run your own instance, you are responsible for your own privacy practices.
+**Important:** This Privacy Policy applies only to our hosted Service. The NA Forays Schedule Bot software itself is open-source under GPL-3.0, and if you run your own instance, you are responsible for your own privacy practices.
 
 We are committed to protecting your privacy and being transparent about our data practices for our hosted Service.
 
@@ -155,7 +155,7 @@ The Bot is not directed to individuals under the age of 13 (or the applicable ag
 
 ## 8. Open Source and Self-Hosting
 
-The NA Schedule Bot software is open-source under GPL-3.0. This provides transparency and alternatives:
+The NA Forays Schedule Bot software is open-source under GPL-3.0. This provides transparency and alternatives:
 
 **Transparency Benefits:**
 - Review the source code to understand data practices
