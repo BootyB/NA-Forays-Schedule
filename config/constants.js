@@ -82,6 +82,12 @@ const BANNER_IMAGES = {
   FT: 'attachment://ft_opening.avif'
 };
 
+const DEFAULT_SCHEDULE_CHANNEL_NAMES = {
+  BA: 'na-arsenal-schedule',
+  FT: 'na-forked-schedule',
+  DRS: 'na-drs-schedule'
+};
+
 const SPACER_IMAGE_URL = 'https://i.imgur.com/ZfizSs7.png';
 
 const CONCURRENCY_LIMIT = parseInt(process.env.CONCURRENCY_LIMIT) || 3;
@@ -103,8 +109,8 @@ const DEFAULT_HEALTH_PORT = 3000;
 const DEV_SERVER_GUILD_ID = process.env.DEV_SERVER_ID || null;
 const IS_DEV_BOT = process.env.IS_DEV_BOT === 'true';
 
-// Whitelist toggle - set WHITELIST_ENABLED=false to allow all servers
-const WHITELIST_ENABLED = process.env.WHITELIST_ENABLED !== 'false';
+// Whitelist toggle - set WHITELIST_ENABLED=false in .env to allow all servers
+const WHITELIST_ENABLED = process.env.WHITELIST_ENABLED === 'true';
 
 module.exports = {
   RAID_TYPES,
@@ -115,6 +121,7 @@ module.exports = {
   TIMEZONE_OPTIONS,
   MAX_TEXT_LENGTH,
   BANNER_IMAGES,
+  DEFAULT_SCHEDULE_CHANNEL_NAMES,
   SPACER_IMAGE_URL,
   CONCURRENCY_LIMIT,
   RATE_LIMITER,

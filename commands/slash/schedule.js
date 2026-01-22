@@ -1,12 +1,13 @@
 // SPDX-FileCopyrightText: 2024-2026 BootyB
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags, ContainerBuilder, TextDisplayBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags, ContainerBuilder, TextDisplayBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle, SeparatorBuilder } = require('discord.js');
 const logger = require('../../utils/logger');
 const encryptedDb = require('../../config/encryptedDatabase');
 const { buildConfigMenu } = require('../../utils/configMenuBuilder');
 const serviceLocator = require('../../services/serviceLocator');
 const { mapRaidTypes } = require('../../utils/raidTypes');
+const { canCreateChannels } = require('../../utils/channelPermissions');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -45,8 +46,8 @@ async function showSetupWizard(interaction) {
 
   const headerText = 
     `## 🎉 Welcome to NA Forays Schedule Bot Setup!\n\n` +
-    `This wizard will help you configure schedule displays for your server.\n\n` +
-    `**Step 1: Select Raid Types**\n` +
+    `This wizard will help you configure schedule displays for your Discord server.\n\n` +
+    `**First Step: Select Raid Types**\n` +
     `Choose which raid schedules you want to display:\n` +
     `● **BA** - Baldesion Arsenal\n` +
     `● **FT** - Forked Tower\n` +
@@ -56,6 +57,28 @@ async function showSetupWizard(interaction) {
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(headerText)
   );
+
+  // Check for ManageChannels permission
+  const botMember = await interaction.guild.members.fetchMe();
+  const createCheck = await canCreateChannels(interaction.guild, botMember);
+  const lacksManageChannels = !createCheck.canCreate && createCheck.reason && createCheck.reason.includes('Manage Channels');
+
+  if (lacksManageChannels) {
+    container.addSeparatorComponents(
+      new SeparatorBuilder()
+    );
+
+    const permissionNote = 
+      `**ℹ️ Note: Automatic Channel Creation Not Available**\n\n` +
+      `The bot was not granted "Manage Channels" permission during installation. ` +
+      `This permission is optional, but required for automatic channel creation.\n\n` +
+      `You can still use the bot by selecting existing channels during setup. ` +
+      `You will need to manually add the bot's role to these channels and setup the required permissions.\n\n`;
+
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(permissionNote)
+    );
+  }
 
   const raidSelect = new StringSelectMenuBuilder()
     .setCustomId('setup_select_raids')
