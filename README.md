@@ -4,15 +4,14 @@ A Discord bot that displays FFXIV NA datacenter raid schedules (Baldesion Arsena
 
 ## Features
 
-- **Server-specific configuration** (choose which host servers to display)
+- **Host Server-specific configuration** (choose which host servers to display)
 - **Automatic updates** every 60 seconds with hash-based change detection
 - **Multi-server deployment** support with whitelist/blacklist system
-- **Customizable embed colors** per raid type
+- **Customizable container colors** per raid type
 - **AES-256-GCM encryption** for all configuration data
 - **Encrypted state management** for schedule caching
 - **Rate limiting** to prevent abuse
 - **Health check endpoint** for monitoring
-- **Database migrations** for easy updates
 - **Comprehensive error handling and logging**
 
 ## Requirements
