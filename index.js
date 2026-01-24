@@ -39,7 +39,7 @@ const client = new Client({
     GatewayIntentBits.Guilds
   ],
   presence: {
-    status: 'invisible'
+    status: 'online'
   },
   rest: {
     timeout: 15000,
