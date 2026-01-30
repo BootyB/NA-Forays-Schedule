@@ -321,13 +321,16 @@ class UpdateManager {
 
       const newMessageIds = [];
       const oldServerHashes = oldState.serverHashes || {};
+      const oldServerOrder = oldState.serverOrder || [];
       const newServerHashes = {};
+      const newServerOrder = [];
       let updatedCount = 0;
       let skippedCount = 0;
 
       for (let i = 0; i < containers.length; i++) {
         const { container, serverName, hash } = containers[i];
         newServerHashes[serverName] = hash;
+        newServerOrder.push(serverName);
         
         try {
           if (needsFullRecreation || !existingMessageIds[i]) {
@@ -351,10 +354,11 @@ class UpdateManager {
                 newMessageIds.push(newMessage.id);
                 updatedCount++;
               } else {
-                // Check if this specific server's content changed
                 const oldHash = oldServerHashes[serverName];
-                if (oldHash === hash) {
-                  // Content unchanged, skip editing
+                const oldServerAtIndex = oldServerOrder[i];
+                const serverPositionChanged = oldServerAtIndex !== serverName;
+                
+                if (oldHash === hash && !serverPositionChanged) {
                   newMessageIds.push(message.id);
                   skippedCount++;
                   logger.debug('Server unchanged, skipping edit', { guildId, raidType, serverName, messageIndex: i });
@@ -362,7 +366,7 @@ class UpdateManager {
                   await message.edit({ components: [container.toJSON()], flags: 1 << 15 });
                   newMessageIds.push(message.id);
                   updatedCount++;
-                  logger.debug('Updated schedule message', { guildId, raidType, serverName, messageIndex: i });
+                  logger.debug('Updated schedule message', { guildId, raidType, serverName, messageIndex: i, positionChanged: serverPositionChanged });
                 }
               }
             } else {
@@ -434,6 +438,7 @@ class UpdateManager {
       this.state[stateKey] = {
         hash: newHash,
         serverHashes: newServerHashes,
+        serverOrder: newServerOrder,
         enabledHosts: enabledHosts.slice().sort(),
         lastUpdate: Date.now(),
         messageCount: newMessageIds.length
