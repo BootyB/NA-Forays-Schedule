@@ -26,54 +26,52 @@ class ScheduleManager {
       const currentTime = Date.now();
       const futureTime = currentTime + (daysAhead * 24 * 60 * 60 * 1000);
 
-      const sourceDbName = process.env.DB_SOURCE_NAME || process.env.DB_NAME;
+      const schemaName = process.env.DB_SOURCE_NAME || 'public';
       const tableName = process.env.DB_TABLE_NAME;
       
       logger.debug('Database configuration', {
-        sourceDbName, 
+        schemaName, 
         tableName,
         DB_SOURCE_NAME: process.env.DB_SOURCE_NAME,
-        DB_NAME: process.env.DB_NAME
+        DB_TABLE_NAME: process.env.DB_TABLE_NAME
       });
       
-      if (!sourceDbName || !tableName) {
-        throw new Error('DB_SOURCE_NAME (or DB_NAME) and DB_TABLE_NAME must be set in environment variables');
+      if (!tableName) {
+        throw new Error('DB_TABLE_NAME must be set in environment variables');
       }
       
       const identifierRegex = /^[a-zA-Z0-9_]+$/;
-      if (!identifierRegex.test(sourceDbName) || !identifierRegex.test(tableName)) {
-        throw new Error('Invalid database or table name format');
+      if (!identifierRegex.test(schemaName) || !identifierRegex.test(tableName)) {
+        throw new Error('Invalid schema or table name format');
       }
       
-      let query = `
+      const raidTypeFilter = getRaidTypeQueryFilter(raidType);
+      
+      const tableRef = schemaName === 'public' ? `"${tableName}"` : `"${schemaName}"."${tableName}"`;
+      
+      const query = `
         SELECT 
-          ID,
-          Type,
-          Start,
-          ServerNameTag,
-          ServerID,
-          RunDC,
-          ServerName,
-          referenceLink,
-          SourceMessageID,
-          EventID,
-          TimeStamp
-        FROM \`${sourceDbName}\`.\`${tableName}\`
-        WHERE Start > ?
-          AND Start < ?
-          AND isCancelled = 0
+          "ID",
+          "Type",
+          "Start",
+          "ServerNameTag",
+          "ServerID",
+          "RunDC",
+          "ServerName",
+          "referenceLink",
+          "SourceMessageID",
+          "EventID",
+          "TimeStamp"
+        FROM ${tableRef}
+        WHERE "Start" > $1
+          AND "Start" < $2
+          AND "isCancelled" = 0
+          AND ${raidTypeFilter}
+          AND "ServerName" = ANY($3)
+        ORDER BY "ServerName", "Start" ASC
       `;
 
-      const params = [currentTime, futureTime];
-
-      query += ` AND ${getRaidTypeQueryFilter(raidType)}`;
-
-      query += ' AND ServerName IN (?)';
-      params.push(enabledHosts);
-
-      query += ' ORDER BY ServerName, Start ASC';
-
-      const runs = await this.pool.query(query, params);
+      const runs = await this.pool.unsafe(query, [currentTime, futureTime, enabledHosts]);
 
       const groupedRuns = {};
       for (const run of runs) {

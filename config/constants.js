@@ -7,21 +7,21 @@ const RAID_TYPES = {
     emoji: { id: '1460936708538499202', name: 'ozma' },
     color: 0xED4245,
     runTypes: ['Fresh', 'Learning', 'Standard', 'Normal', 'Reclear', 'Non-Standard', 'Frag', 'Meme'],
-    dbQueryFilter: 'DRS = 0 AND FT = 0'
+    dbQueryFilter: '"DRS" = 0 AND "FT" = 0'
   },
   FT: {
     name: 'Forked Tower',
     emoji: { id: '1460937119559192647', name: 'demoncube' },
     color: 0xED4245,
     runTypes: ['Fresh/AnyProg', 'Dead Stars', 'Bridges', 'Marble Dragon', 'Magitaur', 'Clear', 'Reclear'],
-    dbQueryFilter: 'FT = 1'
+    dbQueryFilter: '"FT" = 1'
   },
   DRS: {
     name: 'Delubrum Reginae Savage',
     emoji: { id: '1460943074724155599', name: 'queen' },
     color: 0xED4245,
     runTypes: ['Fresh/AnyProg', 'Queen\'s Guard', 'Trinity Avowed', 'The Queen', 'Reclear'],
-    dbQueryFilter: 'DRS = 1'
+    dbQueryFilter: '"DRS" = 1'
   }
 };
 
@@ -109,7 +109,7 @@ const DEFAULT_HEALTH_PORT = 3000;
 const DEV_SERVER_GUILD_ID = process.env.DEV_SERVER_ID || null;
 const IS_DEV_BOT = process.env.IS_DEV_BOT === 'true';
 
-// Whitelist toggle - set WHITELIST_ENABLED=false in .env to allow all servers
+// Whitelist toggle - set WHITELIST_ENABLED=false to allow all servers
 const WHITELIST_ENABLED = process.env.WHITELIST_ENABLED === 'true';
 
 module.exports = {

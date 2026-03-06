@@ -15,7 +15,6 @@ class WhitelistManager {
     try {
       // If whitelist is disabled, allow all guilds
       if (!WHITELIST_ENABLED) {
-        logger.debug('Whitelist disabled, allowing guild', { guildId });
         return true;
       }
 
@@ -83,10 +82,10 @@ class WhitelistManager {
 
   async isHostWhitelisted(serverName) {
     try {
-      const result = await this.pool.query(
-        'SELECT 1 FROM na_bot_whitelisted_hosts WHERE server_name = ? AND is_active = 1',
-        [serverName]
-      );
+      const result = await this.pool`
+        SELECT 1 FROM na_bot_whitelisted_hosts 
+        WHERE server_name = ${serverName} AND is_active = 1
+      `;
       return result.length > 0;
     } catch (error) {
       logger.error('Error checking host whitelist', {
@@ -99,9 +98,9 @@ class WhitelistManager {
 
   async getAllWhitelistedHosts() {
     try {
-      const hosts = await this.pool.query(
-        'SELECT server_name FROM na_bot_whitelisted_hosts WHERE is_active = 1'
-      );
+      const hosts = await this.pool`
+        SELECT server_name FROM na_bot_whitelisted_hosts WHERE is_active = 1
+      `;
       return hosts.map(h => h.server_name);
     } catch (error) {
       logger.error('Error fetching whitelisted hosts', {
@@ -116,13 +115,12 @@ class WhitelistManager {
       const hostServers = getAllHostServers();
       
       for (const serverName of hostServers) {
-        await this.pool.query(
-          `INSERT INTO na_bot_whitelisted_hosts 
+        await this.pool`
+          INSERT INTO na_bot_whitelisted_hosts 
            (server_name, added_by, added_at, is_active)
-           VALUES (?, 'system', NOW(), 1)
-           ON DUPLICATE KEY UPDATE is_active = 1`,
-          [serverName]
-        );
+           VALUES (${serverName}, 'system', NOW(), 1)
+           ON CONFLICT (server_name) DO UPDATE SET is_active = 1
+        `;
       }
       
       logger.info('Initialized host whitelist', { count: hostServers.length });

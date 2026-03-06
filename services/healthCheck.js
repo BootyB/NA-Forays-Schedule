@@ -120,9 +120,7 @@ class HealthCheck {
 
   async checkDatabase() {
     try {
-      const conn = await this.pool.getConnection();
-      await conn.query('SELECT 1');
-      conn.release();
+      await this.pool`SELECT 1`;
 
       return {
         healthy: true,
