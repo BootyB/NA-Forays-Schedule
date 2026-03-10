@@ -337,37 +337,6 @@ docker run -d --env-file .env --name na-schedule-bot na-schedule-bot
 
 </details>
 
-## Architecture
-
-<details>
-<summary>Click to expand Architecture details</summary>
-
-### Data Flow
-
-1. **Schedule Retrieval**: Bot queries source database for upcoming runs
-2. **Change Detection**: Hash-based comparison with encrypted state cache
-3. **Encryption**: Sensitive data encrypted before database storage
-4. **Update Delivery**: Discord schedules updated via components_v2 containers (60s)
-5. **State Caching**: Encrypted state saved to prevent duplicate updates
-
-### Encryption Implementation
-
-- **Algorithm**: AES-256-GCM (authenticated encryption)
-- **Key Size**: 32 bytes (256 bits)
-- **IV**: Random 16 bytes per encryption operation
-- **Authentication**: GCM mode provides authentication tag
-- **Format**: `IV:AuthTag:EncryptedData` (hex-encoded)
-
-### Components
-
-- **Services**: Schedule management, encryption, timers, health checks
-- **Database**: Encrypted storage layer with migration support
-- **Commands**: Discord slash command handlers
-- **Events**: Discord event listeners
-- **Utils**: Encryption, logging, validation, rate limiting
-
-</details>
-
 ## License
 
 GNU General Public License v3.0
