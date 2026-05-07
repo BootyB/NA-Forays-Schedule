@@ -169,7 +169,13 @@ process.on('SIGINT', async () => {
   }
   
   if (serviceLocator.has('updateManager')) {
+    serviceLocator.get('updateManager').destroy();
     await serviceLocator.get('updateManager').saveState();
+  }
+  
+  if (serviceLocator.has('scheduleManager')) {
+    serviceLocator.get('scheduleManager').destroy();
+    logger.info('Schedule manager cache cleaned up');
   }
   
   try {

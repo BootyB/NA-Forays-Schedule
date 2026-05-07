@@ -683,6 +683,13 @@ class UpdateManager {
       return { success: false, error: error.message };
     }
   }
+  
+  destroy() {
+    if (this.scheduleManager) {
+      this.scheduleManager.destroy();
+      logger.info('UpdateManager: Schedule manager cache cleaned up');
+    }
+  }
 }
 
 module.exports = UpdateManager;

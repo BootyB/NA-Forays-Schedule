@@ -9,12 +9,20 @@ dns.setDefaultResultOrder('ipv4first');
 
 let sql;
 
+const poolConfig = {
+  max: parseInt(process.env.DB_MAX_CONNECTIONS) || 20,
+  idle_timeout: parseInt(process.env.DB_IDLE_TIMEOUT) || 20,
+  connect_timeout: parseInt(process.env.DB_CONNECT_TIMEOUT) || 10,
+  max_lifetime: 60 * 30,
+  timeout: 30,
+  prepare: true,
+  fetch_types: false
+};
+
 if (process.env.DATABASE_URL) {
   sql = postgres(process.env.DATABASE_URL, {
     ssl: 'require',
-    max: 10,
-    idle_timeout: 20,
-    connect_timeout: 10
+    ...poolConfig
   });
 } else {
   sql = postgres({
@@ -24,9 +32,7 @@ if (process.env.DATABASE_URL) {
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
     ssl: process.env.DB_SSL === 'true' ? 'require' : false,
-    max: 10,
-    idle_timeout: 20,
-    connect_timeout: 10
+    ...poolConfig
   });
 }
 
