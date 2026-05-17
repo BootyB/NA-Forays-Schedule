@@ -7,9 +7,6 @@ const encryptedDb = require('../../config/encryptedDatabase');
 const serviceLocator = require('../../services/serviceLocator');
 const { getColorFieldConfigs } = require('../../utils/raidTypes');
 
-/**
- * Show the color settings modal
- */
 async function showColorSettingsModal(interaction) {
   const guildId = interaction.guild.id;
 

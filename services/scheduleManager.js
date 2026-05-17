@@ -12,7 +12,7 @@ class ScheduleManager {
     this.pool = pool;
     
     this.queryCache = new Map();
-    this.CACHE_TTL = 30000;
+    this.CACHE_TTL = 300000;
     
     this.cacheStats = { hits: 0, misses: 0 };
     
@@ -32,9 +32,8 @@ class ScheduleManager {
   }
   
   getCacheKey(raidType, enabledHosts, currentTime) {
-    const timeWindow = Math.floor(currentTime / 60000);
     const sortedHosts = enabledHosts.slice().sort().join(',');
-    return `${raidType}:${sortedHosts}:${timeWindow}`;
+    return `${raidType}:${sortedHosts}`;
   }
   
   getCachedResult(cacheKey) {
@@ -75,6 +74,12 @@ class ScheduleManager {
       clearInterval(this.statsInterval);
     }
     this.queryCache.clear();
+  }
+
+  invalidateCache() {
+    const size = this.queryCache.size;
+    this.queryCache.clear();
+    logger.debug('Cache invalidated', { entriesCleared: size });
   }
 
   async retryWithBackoff(fn, maxRetries = 3, initialDelay = 100) {
@@ -199,6 +204,7 @@ class ScheduleManager {
       const queryDuration = Date.now() - queryStartTime;
       const totalDuration = Date.now() - startTime;
       
+      // Only log at info level if query is slow (>1000ms), otherwise debug
       const logLevel = queryDuration > 1000 ? 'info' : 'debug';
       logger[logLevel]('Fetched schedule from database', {
         raidType,
@@ -294,6 +300,55 @@ class ScheduleManager {
         raidType
       });
       return false;
+    }
+  }
+
+  async hasDataChanges() {
+    try {
+      const tableName = process.env.DB_TABLE_NAME;
+      
+      const identifierRegex = /^[a-zA-Z0-9_]+$/;
+      if (!identifierRegex.test(tableName)) {
+        throw new Error('Invalid table name format');
+      }
+      
+      const query = `
+        SELECT EXISTS(
+          SELECT 1 
+          FROM "${tableName}"
+          WHERE "Start"::BIGINT > $1
+            AND "isCancelled" = 0
+            AND (discord_synced = 0 OR "isUpdated" = 1)
+        ) as has_changes
+      `;
+      
+      const result = await this.pool.unsafe(query, [Date.now()]);
+      const hasChanges = result[0]?.has_changes || false;
+      
+      logger.debug('Discord sync check', { hasChanges });
+      return hasChanges;
+    } catch (error) {
+      logger.error('Error checking for Discord sync changes', { error: error.message });
+      return true;
+    }
+  }
+
+  async markDataProcessed() {
+    try {
+      const tableName = process.env.DB_TABLE_NAME;
+      
+      const query = `
+        UPDATE "${tableName}"
+        SET discord_synced = 1
+        WHERE (discord_synced = 0 OR "isUpdated" = 1)
+          AND "Start"::BIGINT > $1
+          AND "isCancelled" = 0
+      `;
+      
+      await this.pool.unsafe(query, [Date.now()]);
+      logger.debug('Marked Discord sync complete for processed runs');
+    } catch (error) {
+      logger.error('Error marking Discord sync complete', { error: error.message });
     }
   }
 }

@@ -305,7 +305,7 @@ class ScheduleContainerBuilder {
           : new Date(run.TimeStamp).getTime();
         isNew = (currentTime - createdTime) < thirtyHoursMs;
       }
-      contentString += `${run.ID}|${run.Type}|${run.Start}|${isNew ? 'NEW' : ''}|`;
+      contentString += `${run.ID}|${run.Type}|${run.Start}|${run.RunDC}|${isNew ? 'NEW' : ''}|`;
     }
     return hashCodeSchedules(contentString);
   }

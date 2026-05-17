@@ -3,6 +3,7 @@
 
 const ScheduleManager = require('./scheduleManager');
 const ScheduleContainerBuilder = require('./containerBuilder');
+const CalendarService = require('./calendarService');
 const { AttachmentBuilder } = require('discord.js');
 const EncryptedStateManager = require('./encryptedStateManager');
 const logger = require('../utils/logger');
@@ -25,6 +26,7 @@ class UpdateManager {
     this.client = client;
     this.scheduleManager = new ScheduleManager(pool);
     this.containerBuilder = new ScheduleContainerBuilder(client);
+    this.calendarService = new CalendarService(pool);
     this.stateManager = new EncryptedStateManager();
     this.state = {};
     this.updateLocks = new Map();
@@ -496,6 +498,17 @@ class UpdateManager {
 
   async updateAllSchedules() {
     try {
+      const hasChanges = await this.scheduleManager.hasDataChanges();
+      
+      if (!hasChanges) {
+        logger.debug('No database changes detected (discord_synced=1 for all runs), skipping update cycle');
+        return;
+      }
+      
+      logger.info('Database changes detected (discord_synced=0 for some runs), running full update cycle');
+      
+      this.scheduleManager.invalidateCache();
+      
       const startTime = Date.now();
       let configs = await encryptedDb.getActiveServerConfigs(
         'WHERE setup_complete = 1 AND auto_update = 1'
@@ -544,9 +557,12 @@ class UpdateManager {
         }
       }
 
+      await this.calendarService.syncAll();
+      await this.scheduleManager.markDataProcessed();
+
       const duration = ((Date.now() - startTime) / 1000).toFixed(1);
       const successful = results.filter(r => r.success).length;
-      logger.debug('Update cycle complete', { 
+      logger.info('Update cycle complete', { 
         duration: `${duration}s`,
         totalGuilds: configs.length,
         successful,

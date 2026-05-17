@@ -14,7 +14,6 @@ const poolConfig = {
   idle_timeout: parseInt(process.env.DB_IDLE_TIMEOUT) || 20,
   connect_timeout: parseInt(process.env.DB_CONNECT_TIMEOUT) || 10,
   max_lifetime: 60 * 30,
-  timeout: 30,
   prepare: true,
   fetch_types: false
 };
