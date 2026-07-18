@@ -459,30 +459,6 @@ class UpdateManager {
         duration: `${duration}s`
       });
 
-      if (updatedCount > 0 || overviewMessageId) {
-        try {
-          const { lockdownChannel } = require('../utils/channelPermissions');
-          const guild = await this.client.guilds.fetch(guildId);
-          const botMember = await guild.members.fetchMe();
-          const lockResult = await lockdownChannel(channel, botMember);
-          
-          if (lockResult.success) {
-            logger.info('Channel permissions set successfully after update', {
-              guildId,
-              raidType,
-              channelId: channel.id
-            });
-          }
-        } catch (lockError) {
-          logger.debug('Could not set channel permissions', {
-            error: lockError.message,
-            guildId,
-            raidType,
-            note: 'This is expected - users can set manually'
-          });
-        }
-      }
-
     } catch (error) {
       logger.error('Error in updateSchedule', {
         error: error.message,
@@ -557,7 +533,7 @@ class UpdateManager {
         }
       }
 
-      await this.calendarService.syncAll();
+      await this.calendarService.syncAll();      
       await this.scheduleManager.markDataProcessed();
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(1);
