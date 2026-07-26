@@ -13,7 +13,7 @@ const RAID_TYPES = {
     name: 'Forked Tower',
     emoji: { id: '1460937119559192647', name: 'demoncube' },
     color: 0xED4245,
-    runTypes: ['Fresh/AnyProg', 'Dead Stars', 'Bridges', 'Marble Dragon', 'Magitaur', 'Clear', 'Reclear'],
+    runTypes: ['Fresh/AnyProg', 'Dead Stars', 'Bridges', 'Marble Dragon', 'Magitaur', 'Clear', 'Reclear', 'Static'],
     dbQueryFilter: '"FT" = 1'
   },
   DRS: {
@@ -46,6 +46,7 @@ function getCalendarLinks(calendarId) {
   };
 }
 
+// Timezone options for the schedule timezone selector
 const TIMEZONE_OPTIONS = [
   { label: '🌍 UTC', value: 'UTC', description: 'Coordinated Universal Time' },
   { label: '🇺🇸 US Eastern', value: 'America/New_York', description: 'Eastern Time (US & Canada)' },
@@ -76,20 +77,25 @@ const TIMEZONE_OPTIONS = [
 
 const MAX_TEXT_LENGTH = 4000;
 
+// Banner images for raid type headers
 const BANNER_IMAGES = {
   BA: 'attachment://ba_opening.avif',
   DRS: 'attachment://drs_opening.avif',
   FT: 'attachment://ft_opening.avif'
 };
 
+// Default schedule channel names per raid type
 const DEFAULT_SCHEDULE_CHANNEL_NAMES = {
   BA: 'na-arsenal-schedule',
   FT: 'na-forked-schedule',
   DRS: 'na-drs-schedule'
 };
 
+// Spacer image URL for container sections
 const SPACER_IMAGE_URL = 'https://i.imgur.com/ZfizSs7.png';
 
+
+// Concurrency limit for batch updates
 const CONCURRENCY_LIMIT = parseInt(process.env.CONCURRENCY_LIMIT) || 3;
 
 // Rate limiter configuration
@@ -101,6 +107,7 @@ const RATE_LIMITER = {
   CLEANUP_INTERVAL: 300000      // Cleanup every 5 minutes
 };
 
+// Default health check port (can be overridden via HEALTH_PORT env var)
 const DEFAULT_HEALTH_PORT = 3000;
 
 // Dev/Prod environment separation

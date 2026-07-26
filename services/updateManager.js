@@ -17,7 +17,10 @@ const {
   getScheduleMessageKey, 
   getScheduleOverviewKey 
 } = require('../utils/raidTypes');
+const { normalizeEnabledFtVariants } = require('../utils/ftVariants');
 const path = require('path');
+const { getSystemUpdateHash } = require('../utils/systemUpdate');
+const { hashCodeSchedules } = require('../utils/hashCode');
 const fs = require('fs');
 
 class UpdateManager {
@@ -121,12 +124,19 @@ class UpdateManager {
         return;
       }
 
+      const enabledFtVariants = raidType === 'FT' ? normalizeEnabledFtVariants(config.enabled_ft_variants) : null;
+      const scheduleOptions = raidType === 'FT' ? { enabledFtVariants } : {};
+
       const groupedRuns = await this.scheduleManager.fetchScheduleGroupedByServer(
         raidType,
-        enabledHosts
+        enabledHosts,
+        undefined,
+        scheduleOptions
       );
 
-      const newHash = this.containerBuilder.generateContentHash(groupedRuns, raidType);
+      const overviewHash = getSystemUpdateHash();
+      const scheduleHash = this.containerBuilder.generateContentHash(groupedRuns, raidType, scheduleOptions);
+      const newHash = hashCodeSchedules(`${scheduleHash}|overview:${overviewHash}`);
 
       const oldState = this.state[stateKey] || {};
       logger.debug('Hash comparison', { 
@@ -148,7 +158,7 @@ class UpdateManager {
       const colorValue = config[colorKey];
       const customColor = colorValue === -1 ? undefined : (colorValue !== undefined ? colorValue : undefined);
 
-      const containers = await this.containerBuilder.buildScheduleContainers(groupedRuns, raidType, customColor);
+      const containers = await this.containerBuilder.buildScheduleContainers(groupedRuns, raidType, customColor, scheduleOptions);
       
       const channelKey = getScheduleChannelKey(raidType);
       const channelId = config[channelKey];
@@ -178,6 +188,7 @@ class UpdateManager {
         overviewMessageKey
       });
 
+      const overviewChanged = oldState.overviewHash !== overviewHash;
       const oldEnabledHosts = oldState.enabledHosts || [];
       const currentEnabledHosts = enabledHosts.slice().sort();
       const hostsListChanged = JSON.stringify(oldEnabledHosts) !== JSON.stringify(currentEnabledHosts);      
@@ -317,6 +328,20 @@ class UpdateManager {
           });
           return;
         }
+      } else if (overviewChanged) {
+        const overviewContainer = this.containerBuilder.buildOverviewContainer(raidType, customColor);
+        const overviewMessage = await channel.messages.fetch(existingOverviewId).catch(() => null);
+
+        if (overviewMessage) {
+          await overviewMessage.edit({
+            components: [overviewContainer.toJSON()],
+            flags: 1 << 15
+          });
+          logger.info('Updated overview message for system update change', { guildId, raidType, messageId: existingOverviewId });
+        } else {
+          logger.warn('Overview message not found during system update refresh', { guildId, raidType, messageId: existingOverviewId });
+          overviewMessageId = null;
+        }
       } else {
         logger.debug('Overview already exists, skipping update', { guildId, raidType, messageId: existingOverviewId });
       }
@@ -442,6 +467,8 @@ class UpdateManager {
         serverHashes: newServerHashes,
         serverOrder: newServerOrder,
         enabledHosts: enabledHosts.slice().sort(),
+        enabledFtVariants: enabledFtVariants ? enabledFtVariants.slice().sort() : null,
+        overviewHash,
         lastUpdate: Date.now(),
         messageCount: newMessageIds.length
       };
@@ -475,13 +502,18 @@ class UpdateManager {
   async updateAllSchedules() {
     try {
       const hasChanges = await this.scheduleManager.hasDataChanges();
+      const systemUpdateHash = getSystemUpdateHash();
+      const systemUpdateChanged = this.state.systemUpdateHash !== systemUpdateHash;
       
-      if (!hasChanges) {
-        logger.debug('No database changes detected (discord_synced=1 for all runs), skipping update cycle');
+      if (!hasChanges && !systemUpdateChanged) {
+        logger.debug('No database or system update changes detected, skipping update cycle');
         return;
       }
       
-      logger.info('Database changes detected (discord_synced=0 for some runs), running full update cycle');
+      logger.info('Changes detected, running full update cycle', {
+        hasDatabaseChanges: hasChanges,
+        systemUpdateChanged
+      });
       
       this.scheduleManager.invalidateCache();
       
@@ -533,8 +565,14 @@ class UpdateManager {
         }
       }
 
-      await this.calendarService.syncAll();      
-      await this.scheduleManager.markDataProcessed();
+      await this.calendarService.syncAll();
+      
+      if (hasChanges) {
+        await this.scheduleManager.markDataProcessed();
+      }
+
+      this.state.systemUpdateHash = systemUpdateHash;
+      await this.saveState();
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(1);
       const successful = results.filter(r => r.success).length;

@@ -5,6 +5,8 @@ const { ContainerBuilder, TextDisplayBuilder, ButtonBuilder, ButtonStyle, Action
 const { SPACER_IMAGE_URL, getCalendarLinks, TIMEZONE_OPTIONS } = require('../config/constants');
 const { getServerIcon, getInviteLink, getChannelLink, getGuildStats } = require('../config/hostServers');
 const { hashCodeSchedules } = require('../utils/hashCode');
+const { buildSystemUpdateBlock } = require('../utils/systemUpdate');
+const { DEFAULT_FT_VARIANTS, getFtVariantLabel, normalizeEnabledFtVariants, normalizeFtVariantValue } = require('../utils/ftVariants');
 const logger = require('../utils/logger');
 const { 
   getRaidTypeName, 
@@ -95,11 +97,22 @@ class ScheduleContainerBuilder {
       new ActionRowBuilder().addComponents(infoButton, serversButton)
     );
 
+    const systemUpdateBlock = buildSystemUpdateBlock();
+    if (systemUpdateBlock) {
+      container.addSeparatorComponents(
+        new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true)
+      );
+
+      container.addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(systemUpdateBlock)
+      );
+    }
+
     logger.debug('Built overview container', { raidType });
     return container;
   }
 
-  async buildScheduleContainers(groupedRuns, raidType, customColor = undefined) {
+  async buildScheduleContainers(groupedRuns, raidType, customColor = undefined, options = {}) {
     const containers = [];
 
     if (!groupedRuns || Object.keys(groupedRuns).length === 0) {
@@ -114,6 +127,29 @@ class ScheduleContainerBuilder {
     let isFirst = true;
     for (const serverName in groupedRuns) {
       const runs = groupedRuns[serverName];
+
+      if (raidType === 'FT') {
+        const enabledVariants = normalizeEnabledFtVariants(options.enabledFtVariants);
+
+        for (const variant of DEFAULT_FT_VARIANTS) {
+          if (!enabledVariants.includes(variant)) continue;
+
+          const variantRuns = runs.filter(run => normalizeFtVariantValue(run.FTRaidVariant) === variant);
+          if (variantRuns.length === 0) continue;
+
+          const containerKey = `${serverName}|${variant}`;
+          const container = await this.buildServerContainer(serverName, variantRuns, raidType, isFirst, customColor, variant);
+          const hash = this.generateServerHash(containerKey, variantRuns, variant);
+          containers.push({
+            container,
+            serverName: containerKey,
+            hash
+          });
+          isFirst = false;
+        }
+        continue;
+      }
+
       const container = await this.buildServerContainer(serverName, runs, raidType, isFirst, customColor);
       const hash = this.generateServerHash(serverName, runs);
       containers.push({
@@ -133,12 +169,13 @@ class ScheduleContainerBuilder {
     return containers;
   }
 
-  async buildServerContainer(serverName, runs, raidType, isFirst = false, customColor = undefined) {
+  async buildServerContainer(serverName, runs, raidType, isFirst = false, customColor = undefined, ftVariant = null) {
     const container = new ContainerBuilder();
     
     setContainerColor(container, customColor, getRaidTypeColor(raidType));
 
-    let headerContent = `## ${getChannelLink(serverName, raidType)}\n`;
+    const ftVariantLabel = raidType === 'FT' && ftVariant ? getFtVariantLabel(ftVariant) : null;
+    let headerContent = `## ${getChannelLink(serverName, raidType)}${ftVariantLabel ? ` - ${ftVariantLabel}` : ''}\n`;
     
     const guildStats = await getGuildStats(serverName, this.client);    
     const serverIcon = guildStats?.icon || await getServerIcon(serverName, this.client);
@@ -292,8 +329,8 @@ class ScheduleContainerBuilder {
     return container;
   }
 
-  generateServerHash(serverName, runs) {
-    let contentString = `${serverName}:`;
+  generateServerHash(serverName, runs, ftVariant = null) {
+    let contentString = `${serverName}:${ftVariant || ''}:`;
     const currentTime = Date.now();
     const thirtyHoursMs = 30 * 60 * 60 * 1000;
     
@@ -305,19 +342,34 @@ class ScheduleContainerBuilder {
           : new Date(run.TimeStamp).getTime();
         isNew = (currentTime - createdTime) < thirtyHoursMs;
       }
-      contentString += `${run.ID}|${run.Type}|${run.Start}|${run.RunDC}|${isNew ? 'NEW' : ''}|`;
+      contentString += `${run.ID}|${run.Type}|${run.FTRaidVariant || ''}|${run.Start}|${run.RunDC}|${isNew ? 'NEW' : ''}|`;
     }
     return hashCodeSchedules(contentString);
   }
 
-  generateContentHash(groupedRuns, raidType) {
+  generateContentHash(groupedRuns, raidType, options = {}) {
     let contentString = `${raidType}|`;
-    
+
     for (const serverName in groupedRuns) {
       const runs = groupedRuns[serverName];
+
+      if (raidType === 'FT') {
+        const enabledVariants = normalizeEnabledFtVariants(options.enabledFtVariants);
+
+        for (const variant of DEFAULT_FT_VARIANTS) {
+          if (!enabledVariants.includes(variant)) continue;
+
+          const variantRuns = runs.filter(run => normalizeFtVariantValue(run.FTRaidVariant) === variant);
+          if (variantRuns.length > 0) {
+            contentString += this.generateServerHash(`${serverName}|${variant}`, variantRuns, variant);
+          }
+        }
+        continue;
+      }
+
       contentString += this.generateServerHash(serverName, runs);
     }
-    
+
     return hashCodeSchedules(contentString);
   }
 }

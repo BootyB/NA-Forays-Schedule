@@ -9,6 +9,7 @@ const { buildConfigMenu } = require('../../utils/configMenuBuilder');
 const { showChannelSelection, setupState } = require('../setupInteractions');
 const serviceLocator = require('../../services/serviceLocator');
 const { getScheduleChannelKey, getEnabledHostsKey } = require('../../utils/raidTypes');
+const { normalizeEnabledFtVariants } = require('../../utils/ftVariants');
 
 async function showMainConfigMenu(interaction) {
   const guildId = interaction.guild.id;
@@ -73,7 +74,7 @@ async function showRaidConfig(interaction, raidType, useEditReply = false) {
     return;
   }
 
-  const container = buildRaidConfigContainer(raidType, config[hostsKey] || []);
+  const container = buildRaidConfigContainer(raidType, config[hostsKey] || [], null, config);
 
   const payload = {
     components: [container],
@@ -87,7 +88,7 @@ async function showRaidConfig(interaction, raidType, useEditReply = false) {
   }
 }
 
-function buildRaidConfigContainer(raidType, enabledHosts, statusMessage = null) {
+function buildRaidConfigContainer(raidType, enabledHosts, statusMessage = null, config = {}) {
   const container = new ContainerBuilder();
 
   let configText = 
@@ -97,8 +98,13 @@ function buildRaidConfigContainer(raidType, enabledHosts, statusMessage = null) 
       const emoji = getServerEmoji(h);
       const emojiString = emoji ? `<${emoji.animated ? 'a' : ''}:${emoji.name}:${emoji.id}>` : '●';
       return `${emojiString} ${h}`;
-    }).join('\n') : 'None') +
-    `\n\nUse the buttons below to modify settings.`;
+    }).join('\n') : 'None');
+
+  if (raidType === 'FT') {
+    configText += `\n\n**Enabled FT Raids:**\n${normalizeEnabledFtVariants(config.enabled_ft_variants).join(', ')}`;
+  }
+
+  configText += `\n\nUse the buttons below to modify settings.`;
 
   if (statusMessage) {
     configText += `\n\n${statusMessage}`;
@@ -113,6 +119,13 @@ function buildRaidConfigContainer(raidType, enabledHosts, statusMessage = null) 
     .setLabel('Change Host Servers')
     .setStyle(ButtonStyle.Primary);
 
+  const changeVariantsButton = raidType === 'FT'
+    ? new ButtonBuilder()
+      .setCustomId('config_change_ft_variants')
+      .setLabel('Change FT Raids')
+      .setStyle(ButtonStyle.Primary)
+    : null;
+
   const regenerateButton = new ButtonBuilder()
     .setCustomId(`config_regenerate_raid_${raidType.toLowerCase()}`)
     .setLabel('Regenerate Schedule')
@@ -123,8 +136,12 @@ function buildRaidConfigContainer(raidType, enabledHosts, statusMessage = null) 
     .setLabel('Back to Menu')
     .setStyle(ButtonStyle.Secondary);
 
+  const primaryButtons = raidType === 'FT'
+    ? [changeHostsButton, changeVariantsButton, regenerateButton]
+    : [changeHostsButton, regenerateButton];
+
   container.addActionRowComponents(
-    new ActionRowBuilder().addComponents(changeHostsButton, regenerateButton)
+    new ActionRowBuilder().addComponents(...primaryButtons)
   );
   
   container.addActionRowComponents(

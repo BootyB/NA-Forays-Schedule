@@ -45,7 +45,8 @@ function encryptConfigFields(guildId, config) {
     guild_id_hash: hashGuildId(guildId),
     guild_name: config.guild_name ? encryptField(config.guild_name, isDevServer) : null,
     setup_complete: config.setup_complete,
-    auto_update: config.auto_update
+    auto_update: config.auto_update,
+    enabled_ft_variants: config.enabled_ft_variants ? encryptJSONField(config.enabled_ft_variants, isDevServer) : null
   };
   
   for (const raidType of ALL_RAID_TYPES) {
@@ -76,7 +77,8 @@ function decryptConfigFields(encryptedConfig) {
     setup_complete: encryptedConfig.setup_complete,
     auto_update: encryptedConfig.auto_update,
     created_at: encryptedConfig.created_at,
-    updated_at: encryptedConfig.updated_at
+    updated_at: encryptedConfig.updated_at,
+    enabled_ft_variants: encryptedConfig.enabled_ft_variants ? (decryptJSONField(encryptedConfig.enabled_ft_variants) || null) : null
   };
   
   for (const raidType of ALL_RAID_TYPES) {
@@ -131,14 +133,14 @@ async function upsertServerConfig(guildId, config) {
      (guild_id, guild_id_encrypted, guild_id_hash, guild_name, setup_complete, auto_update,
       schedule_channel_ba, schedule_channel_ft, schedule_channel_drs,
       schedule_overview_ba, schedule_overview_ft, schedule_overview_drs,
-      enabled_hosts_ba, enabled_hosts_ft, enabled_hosts_drs,
+      enabled_hosts_ba, enabled_hosts_ft, enabled_hosts_drs, enabled_ft_variants,
       schedule_message_ba, schedule_message_ft, schedule_message_drs,
       schedule_color_ba, schedule_color_ft, schedule_color_drs)
      VALUES (${encrypted.guild_id}, ${encrypted.guild_id_encrypted}, ${encrypted.guild_id_hash}, 
              ${encrypted.guild_name}, ${encrypted.setup_complete}, ${encrypted.auto_update},
              ${encrypted.schedule_channel_ba}, ${encrypted.schedule_channel_ft}, ${encrypted.schedule_channel_drs},
              ${encrypted.schedule_overview_ba}, ${encrypted.schedule_overview_ft}, ${encrypted.schedule_overview_drs},
-             ${encrypted.enabled_hosts_ba}, ${encrypted.enabled_hosts_ft}, ${encrypted.enabled_hosts_drs},
+             ${encrypted.enabled_hosts_ba}, ${encrypted.enabled_hosts_ft}, ${encrypted.enabled_hosts_drs}, ${encrypted.enabled_ft_variants},
              ${encrypted.schedule_message_ba}, ${encrypted.schedule_message_ft}, ${encrypted.schedule_message_drs},
              ${encrypted.schedule_color_ba}, ${encrypted.schedule_color_ft}, ${encrypted.schedule_color_drs})
      ON CONFLICT (guild_id) DO UPDATE SET
@@ -155,6 +157,7 @@ async function upsertServerConfig(guildId, config) {
        enabled_hosts_ba = EXCLUDED.enabled_hosts_ba,
        enabled_hosts_ft = EXCLUDED.enabled_hosts_ft,
        enabled_hosts_drs = EXCLUDED.enabled_hosts_drs,
+       enabled_ft_variants = EXCLUDED.enabled_ft_variants,
        schedule_message_ba = EXCLUDED.schedule_message_ba,
        schedule_message_ft = EXCLUDED.schedule_message_ft,
        schedule_message_drs = EXCLUDED.schedule_message_drs,
@@ -185,7 +188,7 @@ async function updateServerConfig(guildId, updates) {
       encryptedUpdates[key] = encryptField(value, isDevServer);
     } else if (key.includes('channel') || key.includes('overview')) {
       encryptedUpdates[key] = encryptField(value, isDevServer);
-    } else if (key.includes('enabled_hosts') || key.includes('schedule_message')) {
+    } else if (key.includes('enabled_hosts') || key === 'enabled_ft_variants' || key.includes('schedule_message')) {
       encryptedUpdates[key] = encryptJSONField(value, isDevServer);
     } else {
       encryptedUpdates[key] = value;
@@ -277,3 +280,4 @@ module.exports = {
   encryptConfigFields,
   decryptConfigFields
 };
+

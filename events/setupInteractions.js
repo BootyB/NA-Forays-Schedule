@@ -7,6 +7,7 @@ const { getAllHostServers, getHostServersForRaidType, getServerEmoji } = require
 const encryptedDb = require('../config/encryptedDatabase');
 const serviceLocator = require('../services/serviceLocator');
 const { DEFAULT_SCHEDULE_CHANNEL_NAMES } = require('../config/constants');
+const { getFtVariantOptions, normalizeEnabledFtVariants } = require('../utils/ftVariants');
 const { getScheduleChannelKey, getEnabledHostsKey } = require('../utils/raidTypes');
 const { canCreateChannels, createScheduleChannel, canManageChannelPermissions, setChannelPermissions } = require('../utils/channelPermissions');
 const setupState = new Map();
@@ -35,7 +36,6 @@ async function handleSetupInteraction(interaction) {
       return;
     }
     
-    // Create a fake values array to reuse handleChannelSelection
     interaction.values = [channelId];
     await handleChannelSelection(interaction, raidType);
   } else if (customId.startsWith('setup_create_channel_')) {
@@ -53,6 +53,8 @@ async function handleSetupInteraction(interaction) {
   } else if (customId.startsWith('setup_select_hosts_')) {
     const raidType = customId.split('_').pop().toUpperCase();
     await handleHostSelection(interaction, raidType);
+  } else if (customId === 'setup_select_ft_variants') {
+    await handleFtVariantSelection(interaction);
   } else if (customId === 'setup_confirm') {
     await handleSetupConfirmation(interaction);
   } else if (customId === 'setup_cancel') {
@@ -78,6 +80,7 @@ async function handleRaidTypeSelection(interaction) {
   state.selectedRaidTypes = selectedTypes;
   state.channels = {};
   state.hosts = {};
+  state.ftVariants = selectedTypes.includes('FT') ? normalizeEnabledFtVariants(null) : null;
   setupState.set(interaction.user.id, state);
 
   await showChannelSelection(interaction, selectedTypes[0], selectedTypes);
@@ -261,7 +264,6 @@ async function handleChannelSelection(interaction, raidType) {
 
     const canAutoSet = canManageChannelPermissions(channel, botMember);
     
-    // Also check if bot's role is high enough in hierarchy
     const roleHighEnough = botMember.roles.highest.position > 1;
     
     if (canAutoSet && roleHighEnough) {
@@ -654,6 +656,52 @@ async function handleHostSelection(interaction, raidType) {
   state.hosts[raidType] = selectedHosts;
   setupState.set(interaction.user.id, state);
 
+  if (raidType === 'FT') {
+    await showFtVariantSelection(interaction);
+    return;
+  }
+
+  await continueSetupAfterRaid(interaction, raidType);
+}
+
+async function showFtVariantSelection(interaction) {
+  const state = setupState.get(interaction.user.id) || {};
+  const container = new ContainerBuilder();
+
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(
+      `## Setup: Select Forked Tower Raids\n\n` +
+      `Choose which Forked Tower raid schedules to display. Both are enabled by default.`
+    )
+  );
+
+  const variantSelect = new StringSelectMenuBuilder()
+    .setCustomId('setup_select_ft_variants')
+    .setPlaceholder('Select Forked Tower raids')
+    .setMinValues(1)
+    .setMaxValues(2)
+    .addOptions(getFtVariantOptions(state.ftVariants));
+
+  container.addActionRowComponents(
+    new ActionRowBuilder().addComponents(variantSelect)
+  );
+
+  await interaction.update({
+    components: [container],
+    flags: 64 | 32768
+  });
+}
+
+async function handleFtVariantSelection(interaction) {
+  const state = setupState.get(interaction.user.id) || {};
+  state.ftVariants = normalizeEnabledFtVariants(interaction.values);
+  setupState.set(interaction.user.id, state);
+
+  await continueSetupAfterRaid(interaction, 'FT');
+}
+
+async function continueSetupAfterRaid(interaction, raidType) {
+  const state = setupState.get(interaction.user.id) || {};
   const currentIndex = state.selectedRaidTypes.indexOf(raidType);
   const nextRaidType = state.selectedRaidTypes[currentIndex + 1];
 
@@ -677,7 +725,11 @@ async function showSetupConfirmation(interaction) {
     
     confirmText += `**${raidType}:**\n`;
     confirmText += `Channel: ${channel ? channel.toString() : 'Unknown'}\n`;
-    confirmText += `Host Servers: ${hosts.join(', ')}\n\n`;
+    confirmText += `Host Servers: ${hosts.join(', ')}\n`;
+    if (raidType === 'FT') {
+      confirmText += `FT Raids: ${normalizeEnabledFtVariants(state.ftVariants).join(', ')}\n`;
+    }
+    confirmText += `\n`;
   }
 
   confirmText += `Schedules will automatically update every 60 seconds.`;
@@ -747,6 +799,7 @@ async function handleSetupConfirmation(interaction) {
         enabled_hosts_ba: existingConfig?.enabled_hosts_ba,
         enabled_hosts_ft: existingConfig?.enabled_hosts_ft,
         enabled_hosts_drs: existingConfig?.enabled_hosts_drs,
+        enabled_ft_variants: existingConfig?.enabled_ft_variants,
         schedule_overview_ba: existingConfig?.schedule_overview_ba,
         schedule_overview_ft: existingConfig?.schedule_overview_ft,
         schedule_overview_drs: existingConfig?.schedule_overview_drs,
@@ -761,6 +814,10 @@ async function handleSetupConfirmation(interaction) {
         
         configData[channelKey] = state.channels[raidType];
         configData[hostsKey] = state.hosts[raidType];
+
+        if (raidType === 'FT') {
+          configData.enabled_ft_variants = normalizeEnabledFtVariants(state.ftVariants);
+        }
       }
     } else {
       configData = {
@@ -778,6 +835,10 @@ async function handleSetupConfirmation(interaction) {
         
         configData[channelKey] = state.channels[raidType];
         configData[hostsKey] = state.hosts[raidType];
+
+        if (raidType === 'FT') {
+          configData.enabled_ft_variants = normalizeEnabledFtVariants(state.ftVariants);
+        }
       }
     }
 

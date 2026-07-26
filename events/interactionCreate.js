@@ -4,8 +4,9 @@
 const { MessageFlags, ContainerBuilder, TextDisplayBuilder, SeparatorBuilder } = require('discord.js');
 const logger = require('../utils/logger');
 const { canConfigureBot } = require('../utils/permissions');
-const { GOOGLE_CALENDAR_IDS } = require('../config/constants');
+const { GOOGLE_CALENDAR_IDS, SYSTEM_UPDATE } = require('../config/constants');
 const rateLimiter = require('../utils/rateLimiter');
+const serviceLocator = require('../services/serviceLocator');
 const { getServerEmoji, getGuildStats, HOST_SERVERS } = require('../config/hostServers');
 const encryptedDb = require('../config/encryptedDatabase');
 const { getEnabledHostsKey, getRaidTypeName } = require('../utils/raidTypes');
@@ -253,6 +254,17 @@ async function handleScheduleInfoButton(interaction) {
     new TextDisplayBuilder().setContent(`-# Questions or corrections? Contact <@${process.env.BOT_OWNER_ID}>`)
   );
 
+  const systemUpdateBlock = buildSystemUpdateBlock();
+  if (systemUpdateBlock) {
+    container.addSeparatorComponents(
+      new SeparatorBuilder()
+    );
+
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(systemUpdateBlock)
+    );
+  }
+
   await interaction.reply({
     components: [container],
     flags: 64 | 32768
@@ -262,6 +274,15 @@ async function handleScheduleInfoButton(interaction) {
     user: interaction.user.tag,
     guild: interaction.guild?.name 
   });
+}
+
+function buildSystemUpdateBlock() {
+  if (!SYSTEM_UPDATE?.message || !SYSTEM_UPDATE?.expiresAt) return null;
+
+  const expiresAt = new Date(SYSTEM_UPDATE.expiresAt).getTime();
+  if (!Number.isFinite(expiresAt) || Date.now() > expiresAt) return null;
+
+  return `\`\`\`ansi\n\u001b[40;32m${SYSTEM_UPDATE.message}\u001b[0m\n\`\`\``;
 }
 
 async function handleScheduleServersButton(interaction) {

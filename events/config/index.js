@@ -9,6 +9,7 @@ const { showHostChangeMenu, saveHostChanges } = require('./hostHandlers');
 const { toggleAutoUpdate, refreshSchedules, regenerateRaidSchedule } = require('./scheduleHandlers');
 const { showResetConfirmation, resetConfiguration } = require('./resetHandlers');
 const { showColorSettingsModal, saveColorSettings } = require('./colorHandlers');
+const { showFtVariantChangeMenu, saveFtVariantChanges } = require('./ftVariantHandlers');
 
 async function handleConfigInteraction(interaction) {
   const customId = interaction.customId;
@@ -53,6 +54,15 @@ async function handleConfigInteraction(interaction) {
     return;
   }
 
+  if (customId === 'config_change_ft_variants') {
+    await showFtVariantChangeMenu(interaction);
+    return;
+  }
+
+  if (customId === 'config_save_ft_variants') {
+    await saveFtVariantChanges(interaction);
+    return;
+  }
   if (customId.startsWith('config_regenerate_raid_')) {
     const raidType = extractRaidType(customId);
     if (!isValidRaidType(raidType)) {
@@ -104,5 +114,7 @@ module.exports = {
   showResetConfirmation,
   resetConfiguration,
   showColorSettingsModal,
-  saveColorSettings
+  saveColorSettings,
+  showFtVariantChangeMenu,
+  saveFtVariantChanges
 };

@@ -6,6 +6,7 @@ const { SCHEDULE_DAYS_AHEAD } = require('../config/constants');
 const { isWhitelistedHost } = require('../config/hostServers');
 const logger = require('../utils/logger');
 const { isValidRaidType, getRunTypePriority, getRaidTypeQueryFilter } = require('../utils/raidTypes');
+const { normalizeEnabledFtVariants, normalizeFtVariantValue } = require('../utils/ftVariants');
 
 class ScheduleManager {
   constructor(pool) {
@@ -31,9 +32,12 @@ class ScheduleManager {
     }, 300000);
   }
   
-  getCacheKey(raidType, enabledHosts, currentTime) {
+  getCacheKey(raidType, enabledHosts, enabledFtVariants = null) {
     const sortedHosts = enabledHosts.slice().sort().join(',');
-    return `${raidType}:${sortedHosts}`;
+    const variantKey = raidType === 'FT'
+      ? `:${normalizeEnabledFtVariants(enabledFtVariants).slice().sort().join(',')}`
+      : '';
+    return `${raidType}:${sortedHosts}${variantKey}`;
   }
   
   getCachedResult(cacheKey) {
@@ -111,7 +115,7 @@ class ScheduleManager {
     }
   }
 
-  async fetchScheduleGroupedByServer(raidType, enabledHosts = [], daysAhead = SCHEDULE_DAYS_AHEAD) {
+  async fetchScheduleGroupedByServer(raidType, enabledHosts = [], daysAhead = SCHEDULE_DAYS_AHEAD, options = {}) {
     const startTime = Date.now();
     
     try {
@@ -126,8 +130,9 @@ class ScheduleManager {
 
       const currentTime = Date.now();
       const futureTime = currentTime + (daysAhead * 24 * 60 * 60 * 1000);
+      const enabledFtVariants = raidType === 'FT' ? normalizeEnabledFtVariants(options.enabledFtVariants) : null;
       
-      const cacheKey = this.getCacheKey(raidType, enabledHosts, currentTime);
+      const cacheKey = this.getCacheKey(raidType, enabledHosts, enabledFtVariants);
       const cached = this.getCachedResult(cacheKey);
       if (cached) {
         logger.debug('Returning cached schedule', {
@@ -165,7 +170,8 @@ class ScheduleManager {
           "referenceLink",
           "SourceMessageID",
           "EventID",
-          "TimeStamp"
+          "TimeStamp",
+          "FTRaidVariant"
         FROM "${tableName}"
         WHERE "Start" > $1
           AND "Start" < $2
@@ -191,8 +197,12 @@ class ScheduleManager {
         throw queryError;
       }
 
+      const visibleRuns = raidType === 'FT'
+        ? runs.filter(run => enabledFtVariants.includes(normalizeFtVariantValue(run.FTRaidVariant)))
+        : runs;
+
       const groupedRuns = {};
-      for (const run of runs) {
+      for (const run of visibleRuns) {
         if (!groupedRuns[run.ServerName]) {
           groupedRuns[run.ServerName] = [];
         }
@@ -203,13 +213,12 @@ class ScheduleManager {
 
       const queryDuration = Date.now() - queryStartTime;
       const totalDuration = Date.now() - startTime;
-      
-      // Only log at info level if query is slow (>1000ms), otherwise debug
+
       const logLevel = queryDuration > 1000 ? 'info' : 'debug';
       logger[logLevel]('Fetched schedule from database', {
         raidType,
         enabledHosts: enabledHosts.length,
-        totalRuns: runs.length,
+        totalRuns: visibleRuns.length,
         servers: Object.keys(groupedRuns).length,
         queryDuration,
         totalDuration,
@@ -329,6 +338,7 @@ class ScheduleManager {
       return hasChanges;
     } catch (error) {
       logger.error('Error checking for Discord sync changes', { error: error.message });
+      // On error, assume there might be changes to be safe
       return true;
     }
   }
@@ -354,3 +364,4 @@ class ScheduleManager {
 }
 
 module.exports = ScheduleManager;
+
