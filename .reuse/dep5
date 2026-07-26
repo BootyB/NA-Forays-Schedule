@@ -1,7 +1,7 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: NA_ForaysSchedule
+Upstream-Name: NA-Forays-Schedule
 Upstream-Contact: BootyB
-Source: https://github.com/BootyB/NA_ForaysSchedule
+Source: https://github.com/BootyB/NA-Forays-Schedule
 
 # Binary assets (game content)
 Files: assets/*.avif
