@@ -81,7 +81,8 @@ const MAX_TEXT_LENGTH = 4000;
 const BANNER_IMAGES = {
   BA: 'attachment://ba_opening.avif',
   DRS: 'attachment://drs_opening.avif',
-  FT: 'attachment://ft_opening.avif'
+  FTB: 'attachment://ft_opening.avif',
+  FTM: 'attachment://ftm_opening.png'
 };
 
 // Default schedule channel names per raid type

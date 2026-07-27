@@ -17,6 +17,10 @@ const FT_VARIANTS = Object.freeze({
 });
 
 const DEFAULT_FT_VARIANTS = Object.freeze(['Blood', 'Magic']);
+const FT_CHANNEL_MODES = Object.freeze({
+  Shared: 'shared',
+  Separate: 'separate'
+});
 
 function normalizeFtVariantValue(value) {
   const normalized = String(value || '').trim().toLowerCase();
@@ -47,6 +51,22 @@ function validateEnabledFtVariants(value) {
   return value.every((item) => DEFAULT_FT_VARIANTS.includes(item));
 }
 
+function normalizeFtChannelMode(value) {
+  return value === FT_CHANNEL_MODES.Separate ? FT_CHANNEL_MODES.Separate : FT_CHANNEL_MODES.Shared;
+}
+
+function isFtSeparateChannelMode(value) {
+  return normalizeFtChannelMode(value) === FT_CHANNEL_MODES.Separate;
+}
+
+function normalizeFtVariantMap(value) {
+  const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  return {
+    Blood: source.Blood || null,
+    Magic: source.Magic || null
+  };
+}
+
 function getFtVariantInfo(value) {
   return FT_VARIANTS[normalizeFtVariantValue(value)];
 }
@@ -72,9 +92,13 @@ function getFtVariantOptions(selectedVariants = DEFAULT_FT_VARIANTS) {
 module.exports = {
   FT_VARIANTS,
   DEFAULT_FT_VARIANTS,
+  FT_CHANNEL_MODES,
   normalizeFtVariantValue,
   normalizeEnabledFtVariants,
   validateEnabledFtVariants,
+  normalizeFtChannelMode,
+  isFtSeparateChannelMode,
+  normalizeFtVariantMap,
   getFtVariantInfo,
   getFtVariantLabel,
   getFtVariantShortLabel,

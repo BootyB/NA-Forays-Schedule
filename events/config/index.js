@@ -9,7 +9,7 @@ const { showHostChangeMenu, saveHostChanges } = require('./hostHandlers');
 const { toggleAutoUpdate, refreshSchedules, regenerateRaidSchedule } = require('./scheduleHandlers');
 const { showResetConfirmation, resetConfiguration } = require('./resetHandlers');
 const { showColorSettingsModal, saveColorSettings } = require('./colorHandlers');
-const { showFtVariantChangeMenu, saveFtVariantChanges } = require('./ftVariantHandlers');
+const { showFtVariantChangeMenu, saveFtVariantChanges, saveCurrentFtVariantChanges, showFtChannelModeMenu, saveFtChannelMode, showFtVariantChannelChangeMenu, handleFtVariantChannelSelection, saveFtVariantChannelChanges } = require('./ftVariantHandlers');
 
 async function handleConfigInteraction(interaction) {
   const customId = interaction.customId;
@@ -61,6 +61,38 @@ async function handleConfigInteraction(interaction) {
 
   if (customId === 'config_save_ft_variants') {
     await saveFtVariantChanges(interaction);
+    return;
+  }
+
+  if (customId === 'config_save_current_ft_variants') {
+    await saveCurrentFtVariantChanges(interaction);
+    return;
+  }
+
+  if (customId === 'config_change_ft_channel_mode') {
+    await showFtChannelModeMenu(interaction);
+    return;
+  }
+
+  if (customId.startsWith('config_set_ft_channel_mode_')) {
+    const mode = customId.split('_').pop();
+    await saveFtChannelMode(interaction, mode);
+    return;
+  }
+
+  if (customId === 'config_change_ft_channels') {
+    await showFtVariantChannelChangeMenu(interaction);
+    return;
+  }
+
+  if (customId.startsWith('config_select_ft_variant_channel_')) {
+    const variant = customId.split('_').pop();
+    await handleFtVariantChannelSelection(interaction, variant);
+    return;
+  }
+
+  if (customId === 'config_save_ft_variant_channels') {
+    await saveFtVariantChannelChanges(interaction);
     return;
   }
   if (customId.startsWith('config_regenerate_raid_')) {
@@ -116,5 +148,11 @@ module.exports = {
   showColorSettingsModal,
   saveColorSettings,
   showFtVariantChangeMenu,
-  saveFtVariantChanges
+  saveFtVariantChanges,
+  saveCurrentFtVariantChanges,
+  showFtChannelModeMenu,
+  saveFtChannelMode,
+  showFtVariantChannelChangeMenu,
+  handleFtVariantChannelSelection,
+  saveFtVariantChannelChanges
 };

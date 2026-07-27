@@ -7,7 +7,7 @@ const { getAllHostServers, getHostServersForRaidType, getServerEmoji } = require
 const encryptedDb = require('../config/encryptedDatabase');
 const serviceLocator = require('../services/serviceLocator');
 const { DEFAULT_SCHEDULE_CHANNEL_NAMES } = require('../config/constants');
-const { getFtVariantOptions, normalizeEnabledFtVariants } = require('../utils/ftVariants');
+const { DEFAULT_FT_VARIANTS, FT_CHANNEL_MODES, getFtVariantOptions, normalizeEnabledFtVariants, normalizeFtChannelMode, normalizeFtVariantMap } = require('../utils/ftVariants');
 const { getScheduleChannelKey, getEnabledHostsKey } = require('../utils/raidTypes');
 const { canCreateChannels, createScheduleChannel, canManageChannelPermissions, setChannelPermissions } = require('../utils/channelPermissions');
 const setupState = new Map();
@@ -44,6 +44,15 @@ async function handleSetupInteraction(interaction) {
   } else if (customId.startsWith('setup_select_channel_')) {
     const raidType = customId.split('_').pop().toUpperCase();
     await handleChannelSelection(interaction, raidType);
+  } else if (customId.startsWith('setup_select_ft_variant_channel_')) {
+    const variant = customId.split('_').pop();
+    await handleFtVariantChannelSelection(interaction, variant);
+  } else if (customId.startsWith('setup_retry_ft_variant_perms_')) {
+    const variant = customId.split('_').pop();
+    await handleFtVariantPermissionRetry(interaction, variant);
+  } else if (customId.startsWith('setup_reselect_ft_variant_channel_')) {
+    const variant = customId.split('_').pop().toLowerCase() === 'magic' ? 'Magic' : 'Blood';
+    await showFtVariantChannelSelection(interaction, variant);
   } else if (customId.startsWith('setup_auto_perms_')) {
     const raidType = customId.split('_').pop().toUpperCase();
     await handleAutoPermissionSetup(interaction, raidType);
@@ -55,6 +64,11 @@ async function handleSetupInteraction(interaction) {
     await handleHostSelection(interaction, raidType);
   } else if (customId === 'setup_select_ft_variants') {
     await handleFtVariantSelection(interaction);
+  } else if (customId === 'setup_continue_ft_variants') {
+    await handleFtVariantContinue(interaction);
+  } else if (customId.startsWith('setup_ft_channel_mode_')) {
+    const mode = customId.split('_').pop();
+    await handleFtChannelModeSelection(interaction, mode);
   } else if (customId === 'setup_confirm') {
     await handleSetupConfirmation(interaction);
   } else if (customId === 'setup_cancel') {
@@ -81,9 +95,11 @@ async function handleRaidTypeSelection(interaction) {
   state.channels = {};
   state.hosts = {};
   state.ftVariants = selectedTypes.includes('FT') ? normalizeEnabledFtVariants(null) : null;
+  state.ftChannelMode = FT_CHANNEL_MODES.Shared;
+  state.ftVariantChannels = normalizeFtVariantMap(null);
   setupState.set(interaction.user.id, state);
 
-  await showChannelSelection(interaction, selectedTypes[0], selectedTypes);
+  await showNextRaidSetupStep(interaction, selectedTypes[0], selectedTypes);
 }
 
 async function showChannelSelection(interaction, currentRaidType, allRaidTypes) {
@@ -219,6 +235,13 @@ async function showChannelSelection(interaction, currentRaidType, allRaidTypes) 
     components: [container],
     flags: 64 | 32768
   });
+}
+
+function shouldSkipHostSelection(state, raidType) {
+  return Array.isArray(state.skipHostSelectionFor) &&
+    state.skipHostSelectionFor.includes(raidType) &&
+    Array.isArray(state.hosts?.[raidType]) &&
+    state.hosts[raidType].length > 0;
 }
 
 async function handleChannelSelection(interaction, raidType) {
@@ -368,7 +391,11 @@ async function handleChannelSelection(interaction, raidType) {
   state.channels[raidType] = channelId;
   setupState.set(interaction.user.id, state);
 
-  await showHostSelection(interaction, raidType);
+  if (shouldSkipHostSelection(state, raidType)) {
+    await continueSetupAfterRaid(interaction, raidType);
+  } else {
+    await showHostSelection(interaction, raidType);
+  }
 }
 
 async function handleChannelCreation(interaction, raidType) {
@@ -656,11 +683,6 @@ async function handleHostSelection(interaction, raidType) {
   state.hosts[raidType] = selectedHosts;
   setupState.set(interaction.user.id, state);
 
-  if (raidType === 'FT') {
-    await showFtVariantSelection(interaction);
-    return;
-  }
-
   await continueSetupAfterRaid(interaction, raidType);
 }
 
@@ -682,8 +704,16 @@ async function showFtVariantSelection(interaction) {
     .setMaxValues(2)
     .addOptions(getFtVariantOptions(state.ftVariants));
 
+  const continueButton = new ButtonBuilder()
+    .setCustomId('setup_continue_ft_variants')
+    .setLabel('Continue')
+    .setStyle(ButtonStyle.Success);
+
   container.addActionRowComponents(
     new ActionRowBuilder().addComponents(variantSelect)
+  );
+  container.addActionRowComponents(
+    new ActionRowBuilder().addComponents(continueButton)
   );
 
   await interaction.update({
@@ -697,7 +727,238 @@ async function handleFtVariantSelection(interaction) {
   state.ftVariants = normalizeEnabledFtVariants(interaction.values);
   setupState.set(interaction.user.id, state);
 
-  await continueSetupAfterRaid(interaction, 'FT');
+  await continueAfterFtVariantSelection(interaction);
+}
+
+async function handleFtVariantContinue(interaction) {
+  const state = setupState.get(interaction.user.id) || {};
+  state.ftVariants = normalizeEnabledFtVariants(state.ftVariants);
+  setupState.set(interaction.user.id, state);
+
+  await continueAfterFtVariantSelection(interaction);
+}
+
+async function continueAfterFtVariantSelection(interaction) {
+  const state = setupState.get(interaction.user.id) || {};
+  const enabledVariants = normalizeEnabledFtVariants(state.ftVariants);
+
+  if (enabledVariants.length === DEFAULT_FT_VARIANTS.length) {
+    await showFtChannelModeSelection(interaction);
+    return;
+  }
+
+  state.ftChannelMode = FT_CHANNEL_MODES.Shared;
+  setupState.set(interaction.user.id, state);
+  await showChannelSelection(interaction, 'FT', state.selectedRaidTypes);
+}
+
+async function showFtChannelModeSelection(interaction) {
+  const container = new ContainerBuilder();
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(
+      '## Setup: Forked Tower Channel Layout\n\n' +
+      'Choose whether Blood and Magic schedules share one FT channel or use separate channels.'
+    )
+  );
+
+  const sharedButton = new ButtonBuilder()
+    .setCustomId('setup_ft_channel_mode_shared')
+    .setLabel('Shared Channel')
+    .setStyle(ButtonStyle.Success);
+
+  const separateButton = new ButtonBuilder()
+    .setCustomId('setup_ft_channel_mode_separate')
+    .setLabel('Separate Channels')
+    .setStyle(ButtonStyle.Primary);
+
+  container.addActionRowComponents(
+    new ActionRowBuilder().addComponents(sharedButton, separateButton)
+  );
+
+  await interaction.update({
+    components: [container],
+    flags: 64 | 32768
+  });
+}
+
+async function handleFtChannelModeSelection(interaction, mode) {
+  const state = setupState.get(interaction.user.id) || {};
+  state.ftChannelMode = normalizeFtChannelMode(mode);
+  setupState.set(interaction.user.id, state);
+
+  if (state.ftChannelMode === FT_CHANNEL_MODES.Separate) {
+    await showFtVariantChannelSelection(interaction, 'Blood');
+    return;
+  }
+
+  await showChannelSelection(interaction, 'FT', state.selectedRaidTypes);
+}
+
+function getRequiredSchedulePermissions() {
+  return [
+    { name: 'View Channel', flag: 'ViewChannel' },
+    { name: 'Send Messages', flag: 'SendMessages' },
+    { name: 'Embed Links', flag: 'EmbedLinks' },
+    { name: 'Attach Files', flag: 'AttachFiles' },
+    { name: 'Read Message History', flag: 'ReadMessageHistory' }
+  ];
+}
+
+function getMissingSchedulePermissions(channel, botMember) {
+  const permissions = channel.permissionsFor(botMember);
+  return getRequiredSchedulePermissions()
+    .filter((perm) => !permissions || !permissions.has(perm.flag))
+    .map((perm) => perm.name);
+}
+
+function getFtVariantLabel(variant) {
+  return variant === 'Magic' ? 'Forked Tower: Magic (Extreme)' : 'Forked Tower: Blood';
+}
+
+async function continueAfterFtVariantChannelSelection(interaction, variant) {
+  if (variant === 'Blood') {
+    await showFtVariantChannelSelection(interaction, 'Magic');
+    return;
+  }
+
+  await showHostSelection(interaction, 'FT');
+}
+
+async function showFtVariantPermissionInstructions(interaction, variant, channel, missingPermissions, useEditReply = false) {
+  const label = getFtVariantLabel(variant);
+  const container = new ContainerBuilder();
+  const errorText =
+    `? **Missing Permissions in ${channel.toString()}**\n\n` +
+    `I need these permissions before I can post the ${label} schedule:\n` +
+    `${missingPermissions.map((permission) => `- \`${permission}\``).join('\n')}\n\n` +
+    `**How to Fix:**\n\n` +
+    `1. Right-click ${channel.toString()} ? **Edit Channel**\n` +
+    `2. Go to **Permissions**\n` +
+    `3. Add the **NA Forays Schedule** role or bot member\n` +
+    `4. Enable: ${missingPermissions.join(', ')}\n` +
+    `5. Save, then click **Try Again**`; 
+
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(errorText));
+
+  const retryButton = new ButtonBuilder()
+    .setCustomId(`setup_retry_ft_variant_perms_${variant.toLowerCase()}`)
+    .setLabel('Try Again')
+    .setStyle(ButtonStyle.Primary);
+
+  const chooseButton = new ButtonBuilder()
+    .setCustomId(`setup_reselect_ft_variant_channel_${variant.toLowerCase()}`)
+    .setLabel('Choose Different Channel')
+    .setStyle(ButtonStyle.Secondary);
+
+  container.addActionRowComponents(new ActionRowBuilder().addComponents(retryButton, chooseButton));
+
+  const payload = { components: [container], flags: 64 | 32768 };
+  if (useEditReply) {
+    await interaction.editReply(payload);
+  } else {
+    await interaction.update(payload);
+  }
+}
+
+async function validateFtVariantChannelPermissions(interaction, variant, channel, useEditReply = false) {
+  const botMember = await interaction.guild.members.fetchMe();
+  const missingPermissions = getMissingSchedulePermissions(channel, botMember);
+  if (missingPermissions.length === 0) {
+    return true;
+  }
+
+  const canAutoSet = canManageChannelPermissions(channel, botMember);
+  const roleHighEnough = botMember.roles.highest.position > 1;
+  if (canAutoSet && roleHighEnough) {
+    if (!useEditReply) {
+      await interaction.deferUpdate();
+    }
+    const result = await setChannelPermissions(channel, botMember);
+    if (result.success) {
+      const container = new ContainerBuilder();
+      container.addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(
+          `? **Permissions Set Successfully**\n\n` +
+          `${channel.toString()} is now configured for ${getFtVariantLabel(variant)} schedules.`
+        )
+      );
+      await interaction.editReply({ components: [container], flags: 64 | 32768 });
+      setTimeout(() => continueAfterFtVariantChannelSelection(interaction, variant), 1500);
+      return false;
+    }
+  }
+
+  await showFtVariantPermissionInstructions(interaction, variant, channel, missingPermissions, useEditReply);
+  return false;
+}
+
+async function showFtVariantChannelSelection(interaction, variant) {
+  const container = new ContainerBuilder();
+  const label = variant === 'Magic' ? 'Forked Tower: Magic (Extreme)' : 'Forked Tower: Blood';
+
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(
+      `## Setup: Select ${label} Channel\n\n` +
+      'Choose the channel where this FT schedule should be posted.'
+    )
+  );
+
+  const channelSelect = new ChannelSelectMenuBuilder()
+    .setCustomId(`setup_select_ft_variant_channel_${variant.toLowerCase()}`)
+    .setPlaceholder(`Select channel for ${label}`)
+    .addChannelTypes(ChannelType.GuildText);
+
+  container.addActionRowComponents(
+    new ActionRowBuilder().addComponents(channelSelect)
+  );
+
+  await interaction.update({
+    components: [container],
+    flags: 64 | 32768
+  });
+}
+
+async function handleFtVariantChannelSelection(interaction, variantValue) {
+  const variant = variantValue.toLowerCase() === 'magic' ? 'Magic' : 'Blood';
+  const channelId = interaction.values[0];
+  const channel = interaction.guild.channels.cache.get(channelId);
+
+  if (!channel) {
+    await interaction.update({
+      content: 'Channel not found. Please try again.',
+      components: [],
+      flags: 1 << 15
+    });
+    return;
+  }
+
+  const state = setupState.get(interaction.user.id) || {};
+  state.ftVariantChannels = normalizeFtVariantMap(state.ftVariantChannels);
+  state.ftVariantChannels[variant] = channelId;
+  setupState.set(interaction.user.id, state);
+
+  const hasPermissions = await validateFtVariantChannelPermissions(interaction, variant, channel);
+  if (!hasPermissions) return;
+
+  await continueAfterFtVariantChannelSelection(interaction, variant);
+}
+
+async function handleFtVariantPermissionRetry(interaction, variantValue) {
+  const variant = variantValue.toLowerCase() === 'magic' ? 'Magic' : 'Blood';
+  const state = setupState.get(interaction.user.id) || {};
+  const variantChannels = normalizeFtVariantMap(state.ftVariantChannels);
+  const channelId = variantChannels[variant];
+  const channel = interaction.guild.channels.cache.get(channelId);
+
+  if (!channel) {
+    await showFtVariantChannelSelection(interaction, variant);
+    return;
+  }
+
+  const hasPermissions = await validateFtVariantChannelPermissions(interaction, variant, channel);
+  if (!hasPermissions) return;
+
+  await continueAfterFtVariantChannelSelection(interaction, variant);
 }
 
 async function continueSetupAfterRaid(interaction, raidType) {
@@ -706,10 +967,19 @@ async function continueSetupAfterRaid(interaction, raidType) {
   const nextRaidType = state.selectedRaidTypes[currentIndex + 1];
 
   if (nextRaidType) {
-    await showChannelSelection(interaction, nextRaidType, state.selectedRaidTypes);
+    await showNextRaidSetupStep(interaction, nextRaidType, state.selectedRaidTypes);
   } else {
     await showSetupConfirmation(interaction);
   }
+}
+
+async function showNextRaidSetupStep(interaction, raidType, allRaidTypes) {
+  if (raidType === 'FT') {
+    await showFtVariantSelection(interaction);
+    return;
+  }
+
+  await showChannelSelection(interaction, raidType, allRaidTypes);
 }
 
 async function showSetupConfirmation(interaction) {
@@ -724,7 +994,16 @@ async function showSetupConfirmation(interaction) {
     const hosts = state.hosts[raidType] || [];
     
     confirmText += `**${raidType}:**\n`;
-    confirmText += `Channel: ${channel ? channel.toString() : 'Unknown'}\n`;
+    if (raidType === 'FT' && normalizeFtChannelMode(state.ftChannelMode) === FT_CHANNEL_MODES.Separate) {
+      const variantChannels = normalizeFtVariantMap(state.ftVariantChannels);
+      const bloodChannel = interaction.guild.channels.cache.get(variantChannels.Blood);
+      const magicChannel = interaction.guild.channels.cache.get(variantChannels.Magic);
+      confirmText += `Channel Layout: Separate\n`;
+      confirmText += `Blood Channel: ${bloodChannel ? bloodChannel.toString() : 'Unknown'}\n`;
+      confirmText += `Magic Channel: ${magicChannel ? magicChannel.toString() : 'Unknown'}\n`;
+    } else {
+      confirmText += `Channel: ${channel ? channel.toString() : 'Unknown'}\n`;
+    }
     confirmText += `Host Servers: ${hosts.join(', ')}\n`;
     if (raidType === 'FT') {
       confirmText += `FT Raids: ${normalizeEnabledFtVariants(state.ftVariants).join(', ')}\n`;
@@ -792,6 +1071,8 @@ async function handleSetupConfirmation(interaction) {
         auto_update: existingConfig?.auto_update ?? 1,
         schedule_color_ba: existingConfig?.schedule_color_ba ?? -1,
         schedule_color_ft: existingConfig?.schedule_color_ft ?? -1,
+        schedule_color_ft_blood: existingConfig?.schedule_color_ft_blood ?? -2,
+        schedule_color_ft_magic: existingConfig?.schedule_color_ft_magic ?? -2,
         schedule_color_drs: existingConfig?.schedule_color_drs ?? -1,
         schedule_channel_ba: existingConfig?.schedule_channel_ba,
         schedule_channel_ft: existingConfig?.schedule_channel_ft,
@@ -800,6 +1081,10 @@ async function handleSetupConfirmation(interaction) {
         enabled_hosts_ft: existingConfig?.enabled_hosts_ft,
         enabled_hosts_drs: existingConfig?.enabled_hosts_drs,
         enabled_ft_variants: existingConfig?.enabled_ft_variants,
+        ft_channel_mode: existingConfig?.ft_channel_mode,
+        ft_variant_channel_ids: existingConfig?.ft_variant_channel_ids,
+        ft_variant_overview_ids: existingConfig?.ft_variant_overview_ids,
+        ft_variant_message_ids: existingConfig?.ft_variant_message_ids,
         schedule_overview_ba: existingConfig?.schedule_overview_ba,
         schedule_overview_ft: existingConfig?.schedule_overview_ft,
         schedule_overview_drs: existingConfig?.schedule_overview_drs,
@@ -812,11 +1097,15 @@ async function handleSetupConfirmation(interaction) {
         const channelKey = getScheduleChannelKey(raidType);
         const hostsKey = getEnabledHostsKey(raidType);
         
-        configData[channelKey] = state.channels[raidType];
+        if (raidType !== 'FT' || normalizeFtChannelMode(state.ftChannelMode) !== FT_CHANNEL_MODES.Separate) {
+          configData[channelKey] = state.channels[raidType];
+        }
         configData[hostsKey] = state.hosts[raidType];
 
         if (raidType === 'FT') {
           configData.enabled_ft_variants = normalizeEnabledFtVariants(state.ftVariants);
+          configData.ft_channel_mode = normalizeFtChannelMode(state.ftChannelMode);
+          configData.ft_variant_channel_ids = normalizeFtVariantMap(state.ftVariantChannels);
         }
       }
     } else {
@@ -826,6 +1115,8 @@ async function handleSetupConfirmation(interaction) {
         auto_update: 1,
         schedule_color_ba: -1,
         schedule_color_ft: -1,
+        schedule_color_ft_blood: -2,
+        schedule_color_ft_magic: -2,
         schedule_color_drs: -1
       };
 
@@ -833,11 +1124,15 @@ async function handleSetupConfirmation(interaction) {
         const channelKey = getScheduleChannelKey(raidType);
         const hostsKey = getEnabledHostsKey(raidType);
         
-        configData[channelKey] = state.channels[raidType];
+        if (raidType !== 'FT' || normalizeFtChannelMode(state.ftChannelMode) !== FT_CHANNEL_MODES.Separate) {
+          configData[channelKey] = state.channels[raidType];
+        }
         configData[hostsKey] = state.hosts[raidType];
 
         if (raidType === 'FT') {
           configData.enabled_ft_variants = normalizeEnabledFtVariants(state.ftVariants);
+          configData.ft_channel_mode = normalizeFtChannelMode(state.ftChannelMode);
+          configData.ft_variant_channel_ids = normalizeFtVariantMap(state.ftVariantChannels);
         }
       }
     }
@@ -906,6 +1201,7 @@ async function handleSetupConfirmation(interaction) {
 module.exports = { 
   handleSetupInteraction,
   showChannelSelection,
+  showFtVariantSelection,
   showHostSelection,
   setupState
 };

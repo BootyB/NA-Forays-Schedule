@@ -6,6 +6,7 @@ const logger = require('../../utils/logger');
 const encryptedDb = require('../../config/encryptedDatabase');
 const serviceLocator = require('../../services/serviceLocator');
 const { ALL_RAID_TYPES, getScheduleChannelKey, getScheduleOverviewKey, getScheduleMessageKey } = require('../../utils/raidTypes');
+const { normalizeFtVariantMap } = require('../../utils/ftVariants');
 
 async function showResetConfirmation(interaction) {
   const container = new ContainerBuilder();
@@ -97,6 +98,67 @@ async function resetConfiguration(interaction) {
   }
 }
 
+function parseMessageIds(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+async function deleteUntrackedBotContainerMessages(channel, trackedIds, raidType, guildId) {
+  try {
+    const messages = await channel.messages.fetch({ limit: 100 });
+    const botId = channel.client.user.id;
+
+    for (const message of messages.values()) {
+      if (message.author.id !== botId) continue;
+      if (trackedIds.has(message.id)) continue;
+      if (!message.components || message.components.length === 0) continue;
+
+      await message.delete();
+      logger.debug('Deleted untracked bot container message', { guildId, raidType, messageId: message.id });
+    }
+  } catch (err) {
+    logger.debug('Could not scan for untracked bot container messages', { guildId, raidType, channelId: channel.id, error: err.message });
+  }
+}
+
+async function deleteFtVariantScheduleMessages(guild, config) {
+  const channelMap = normalizeFtVariantMap(config.ft_variant_channel_ids);
+  const overviewMap = normalizeFtVariantMap(config.ft_variant_overview_ids);
+  const messageMap = normalizeFtVariantMap(config.ft_variant_message_ids);
+
+  for (const variant of ['Blood', 'Magic']) {
+    const channelId = channelMap[variant];
+    if (!channelId) continue;
+
+    try {
+      const channel = await guild.channels.fetch(channelId);
+      if (!channel) continue;
+
+      const trackedIds = new Set();
+
+      if (overviewMap[variant]) {
+        trackedIds.add(overviewMap[variant]);
+        await deleteMessage(channel, overviewMap[variant], 'overview', `FT ${variant}`, guild.id);
+      }
+
+      for (const messageId of parseMessageIds(messageMap[variant])) {
+        trackedIds.add(messageId);
+        await deleteMessage(channel, messageId, 'schedule', `FT ${variant}`, guild.id);
+      }
+
+      await deleteUntrackedBotContainerMessages(channel, trackedIds, `FT ${variant}`, guild.id);
+    } catch (err) {
+      logger.debug('Could not access FT variant channel during reset', { guildId: guild.id, variant, channelId, error: err.message });
+    }
+  }
+}
+
 async function deleteAllScheduleMessages(guild, config) {
   for (const raidType of ALL_RAID_TYPES) {
     const channelKey = getScheduleChannelKey(raidType);
@@ -116,7 +178,7 @@ async function deleteAllScheduleMessages(guild, config) {
       const messageKey = getScheduleMessageKey(raidType);
       const messageIds = config[messageKey];
       if (messageIds) {
-        const parsedIds = Array.isArray(messageIds) ? messageIds : JSON.parse(messageIds);
+        const parsedIds = parseMessageIds(messageIds);
         for (const msgId of parsedIds) {
           await deleteMessage(channel, msgId, 'schedule', raidType, guild.id);
         }
@@ -125,6 +187,8 @@ async function deleteAllScheduleMessages(guild, config) {
       logger.debug('Could not access channel', { channelId });
     }
   }
+
+  await deleteFtVariantScheduleMessages(guild, config);
 }
 
 async function deleteMessage(channel, messageId, messageType, raidType, guildId) {

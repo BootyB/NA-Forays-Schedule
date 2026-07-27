@@ -46,7 +46,13 @@ function encryptConfigFields(guildId, config) {
     guild_name: config.guild_name ? encryptField(config.guild_name, isDevServer) : null,
     setup_complete: config.setup_complete,
     auto_update: config.auto_update,
-    enabled_ft_variants: config.enabled_ft_variants ? encryptJSONField(config.enabled_ft_variants, isDevServer) : null
+    enabled_ft_variants: config.enabled_ft_variants ? encryptJSONField(config.enabled_ft_variants, isDevServer) : null,
+    ft_channel_mode: config.ft_channel_mode ? encryptField(config.ft_channel_mode, isDevServer) : null,
+    ft_variant_channel_ids: config.ft_variant_channel_ids ? encryptJSONField(config.ft_variant_channel_ids, isDevServer) : null,
+    ft_variant_overview_ids: config.ft_variant_overview_ids ? encryptJSONField(config.ft_variant_overview_ids, isDevServer) : null,
+    ft_variant_message_ids: config.ft_variant_message_ids ? encryptJSONField(config.ft_variant_message_ids, isDevServer) : null,
+    schedule_color_ft_blood: config.schedule_color_ft_blood ?? -2,
+    schedule_color_ft_magic: config.schedule_color_ft_magic ?? -2
   };
   
   for (const raidType of ALL_RAID_TYPES) {
@@ -56,7 +62,7 @@ function encryptConfigFields(guildId, config) {
     const messageKey = getScheduleMessageKey(raidType);
     const colorKey = getScheduleColorKey(raidType);
     
-    result[channelKey] = config[channelKey] ? encryptField(config[channelKey], isDevServer) : null;
+        result[channelKey] = config[channelKey] ? encryptField(config[channelKey], isDevServer) : null;
     result[overviewKey] = config[overviewKey] ? encryptField(config[overviewKey], isDevServer) : null;
     
     result[hostsKey] = config[hostsKey] ? encryptJSONField(config[hostsKey], isDevServer) : null;
@@ -78,7 +84,13 @@ function decryptConfigFields(encryptedConfig) {
     auto_update: encryptedConfig.auto_update,
     created_at: encryptedConfig.created_at,
     updated_at: encryptedConfig.updated_at,
-    enabled_ft_variants: encryptedConfig.enabled_ft_variants ? (decryptJSONField(encryptedConfig.enabled_ft_variants) || null) : null
+    enabled_ft_variants: encryptedConfig.enabled_ft_variants ? (decryptJSONField(encryptedConfig.enabled_ft_variants) || null) : null,
+    ft_channel_mode: encryptedConfig.ft_channel_mode ? decryptField(encryptedConfig.ft_channel_mode) : null,
+    ft_variant_channel_ids: encryptedConfig.ft_variant_channel_ids ? (decryptJSONField(encryptedConfig.ft_variant_channel_ids) || null) : null,
+    ft_variant_overview_ids: encryptedConfig.ft_variant_overview_ids ? (decryptJSONField(encryptedConfig.ft_variant_overview_ids) || null) : null,
+    ft_variant_message_ids: encryptedConfig.ft_variant_message_ids ? (decryptJSONField(encryptedConfig.ft_variant_message_ids) || null) : null,
+    schedule_color_ft_blood: encryptedConfig.schedule_color_ft_blood,
+    schedule_color_ft_magic: encryptedConfig.schedule_color_ft_magic
   };
   
   for (const raidType of ALL_RAID_TYPES) {
@@ -133,16 +145,16 @@ async function upsertServerConfig(guildId, config) {
      (guild_id, guild_id_encrypted, guild_id_hash, guild_name, setup_complete, auto_update,
       schedule_channel_ba, schedule_channel_ft, schedule_channel_drs,
       schedule_overview_ba, schedule_overview_ft, schedule_overview_drs,
-      enabled_hosts_ba, enabled_hosts_ft, enabled_hosts_drs, enabled_ft_variants,
+      enabled_hosts_ba, enabled_hosts_ft, enabled_hosts_drs, enabled_ft_variants, ft_channel_mode, ft_variant_channel_ids, ft_variant_overview_ids, ft_variant_message_ids,
       schedule_message_ba, schedule_message_ft, schedule_message_drs,
-      schedule_color_ba, schedule_color_ft, schedule_color_drs)
+      schedule_color_ba, schedule_color_ft, schedule_color_ft_blood, schedule_color_ft_magic, schedule_color_drs)
      VALUES (${encrypted.guild_id}, ${encrypted.guild_id_encrypted}, ${encrypted.guild_id_hash}, 
              ${encrypted.guild_name}, ${encrypted.setup_complete}, ${encrypted.auto_update},
              ${encrypted.schedule_channel_ba}, ${encrypted.schedule_channel_ft}, ${encrypted.schedule_channel_drs},
              ${encrypted.schedule_overview_ba}, ${encrypted.schedule_overview_ft}, ${encrypted.schedule_overview_drs},
-             ${encrypted.enabled_hosts_ba}, ${encrypted.enabled_hosts_ft}, ${encrypted.enabled_hosts_drs}, ${encrypted.enabled_ft_variants},
+             ${encrypted.enabled_hosts_ba}, ${encrypted.enabled_hosts_ft}, ${encrypted.enabled_hosts_drs}, ${encrypted.enabled_ft_variants}, ${encrypted.ft_channel_mode}, ${encrypted.ft_variant_channel_ids}, ${encrypted.ft_variant_overview_ids}, ${encrypted.ft_variant_message_ids},
              ${encrypted.schedule_message_ba}, ${encrypted.schedule_message_ft}, ${encrypted.schedule_message_drs},
-             ${encrypted.schedule_color_ba}, ${encrypted.schedule_color_ft}, ${encrypted.schedule_color_drs})
+             ${encrypted.schedule_color_ba}, ${encrypted.schedule_color_ft}, ${encrypted.schedule_color_ft_blood}, ${encrypted.schedule_color_ft_magic}, ${encrypted.schedule_color_drs})
      ON CONFLICT (guild_id) DO UPDATE SET
        guild_id_encrypted = EXCLUDED.guild_id_encrypted,
        guild_name = EXCLUDED.guild_name,
@@ -158,11 +170,17 @@ async function upsertServerConfig(guildId, config) {
        enabled_hosts_ft = EXCLUDED.enabled_hosts_ft,
        enabled_hosts_drs = EXCLUDED.enabled_hosts_drs,
        enabled_ft_variants = EXCLUDED.enabled_ft_variants,
+       ft_channel_mode = EXCLUDED.ft_channel_mode,
+       ft_variant_channel_ids = EXCLUDED.ft_variant_channel_ids,
+       ft_variant_overview_ids = EXCLUDED.ft_variant_overview_ids,
+       ft_variant_message_ids = EXCLUDED.ft_variant_message_ids,
        schedule_message_ba = EXCLUDED.schedule_message_ba,
        schedule_message_ft = EXCLUDED.schedule_message_ft,
        schedule_message_drs = EXCLUDED.schedule_message_drs,
        schedule_color_ba = EXCLUDED.schedule_color_ba,
        schedule_color_ft = EXCLUDED.schedule_color_ft,
+       schedule_color_ft_blood = EXCLUDED.schedule_color_ft_blood,
+       schedule_color_ft_magic = EXCLUDED.schedule_color_ft_magic,
        schedule_color_drs = EXCLUDED.schedule_color_drs
   `;
 }
@@ -186,6 +204,10 @@ async function updateServerConfig(guildId, updates) {
     
     if (key === 'guild_name') {
       encryptedUpdates[key] = encryptField(value, isDevServer);
+    } else if (key === 'ft_channel_mode') {
+      encryptedUpdates[key] = encryptField(value, isDevServer);
+    } else if (key.startsWith('ft_variant_')) {
+      encryptedUpdates[key] = encryptJSONField(value, isDevServer);
     } else if (key.includes('channel') || key.includes('overview')) {
       encryptedUpdates[key] = encryptField(value, isDevServer);
     } else if (key.includes('enabled_hosts') || key === 'enabled_ft_variants' || key.includes('schedule_message')) {
@@ -280,4 +302,3 @@ module.exports = {
   encryptConfigFields,
   decryptConfigFields
 };
-

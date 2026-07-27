@@ -41,7 +41,7 @@ class ScheduleContainerBuilder {
     this.client = client;
   }
 
-  buildOverviewContainer(raidType, customColor = undefined) {
+  buildOverviewContainer(raidType, customColor = undefined, options = {}) {
     const container = new ContainerBuilder();
     
     setContainerColor(container, customColor, getRaidTypeColor(raidType));
@@ -49,7 +49,7 @@ class ScheduleContainerBuilder {
     const calendarId = getCalendarId(raidType);
     const links = getCalendarLinks(calendarId);
 
-    const bannerImage = getBannerImage(raidType);
+    const bannerImage = options.bannerImage !== undefined ? options.bannerImage : getBannerImage(raidType);
     if (bannerImage) {
       container.addMediaGalleryComponents(
         new MediaGalleryBuilder().addItems(
@@ -58,7 +58,7 @@ class ScheduleContainerBuilder {
       );
     }
     
-    const raidName = getRaidTypeName(raidType);
+    const raidName = raidType === 'FT' && options.ftVariant ? getFtVariantLabel(options.ftVariant) : getRaidTypeName(raidType);
     let headerContent = '';
     if (bannerImage) {
       headerContent = `### Multi-Server *${raidName}* Schedule for North American and Materia Data Centers\n`;
@@ -236,15 +236,31 @@ class ScheduleContainerBuilder {
       return a.localeCompare(b);
     });
 
+    const runDisplayCount = sortedRunTypes.length + runs.length;
+    const usePerRunComponents = runDisplayCount <= 32;
+
     for (const runType of sortedRunTypes) {
       const typeRuns = runsByType[runType];
-      const runText = this.formatRunGroup(runType, typeRuns);
-      
+
+      if (!usePerRunComponents) {
+        container.addTextDisplayComponents(
+          new TextDisplayBuilder().setContent(this.formatRunGroup(runType, typeRuns))
+        );
+        continue;
+      }
+
       container.addTextDisplayComponents(
-        new TextDisplayBuilder().setContent(runText)
+        new TextDisplayBuilder().setContent(`### ${runType}`)
       );
+
+      for (const run of typeRuns) {
+        container.addTextDisplayComponents(
+          new TextDisplayBuilder().setContent(this.formatSingleRunBlock(run))
+        );
+      }
     }
 
+    
     container.addSeparatorComponents(
       new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true)
     );
@@ -270,40 +286,46 @@ class ScheduleContainerBuilder {
     return container;
   }
 
-  formatRunGroup(runType, runs) {
-    let text = `### ${runType}\n`;
+  quoteRunBlock(text) {
+    return String(text)
+      .split('\n')
+      .map((line) => line ? `> ${line}` : '>')
+      .join('\n');
+  }
+
+  formatSingleRunBlock(run) {
+    const timestamp = Math.round(run.Start / 1000);
     const currentTime = Date.now();
     const thirtyHoursMs = 30 * 60 * 60 * 1000; // 30 hours in milliseconds
     
-    for (const run of runs) {
-      const timestamp = Math.round(run.Start / 1000);
-      const timeStr = `<t:${timestamp}:F>\n`;
-      
-      let isNew = false;
-      if (run.TimeStamp) {
-        const createdTime = run.TimeStamp instanceof Date 
-          ? run.TimeStamp.getTime() 
-          : new Date(run.TimeStamp).getTime();
-        isNew = (currentTime - createdTime) < thirtyHoursMs;
-      }
-      const newBadge = isNew ? '🆕 ' : '';
-      
-      text += `● ${newBadge}${timeStr}`;
-      
-      if (run.RunDC) {
-        text += ` Data Center: ${run.RunDC}\n`;
-      }
-      
-      if (run.referenceLink) {
-        text += `[Run Info](${run.referenceLink})`;
-      }
-      
-      text += '\n';
+    let isNew = false;
+    if (run.TimeStamp) {
+      const createdTime = run.TimeStamp instanceof Date 
+        ? run.TimeStamp.getTime() 
+        : new Date(run.TimeStamp).getTime();
+      isNew = (currentTime - createdTime) < thirtyHoursMs;
+    }
+
+    const newBadge = isNew ? '🆕 ' : '';
+    const runLines = [`${newBadge}<t:${timestamp}:F>`];
+    
+    if (run.RunDC) {
+      runLines.push(`Data Center: ${run.RunDC}`);
     }
     
-    return text;
+    if (run.referenceLink) {
+      runLines.push(`[Run Info](${run.referenceLink})`);
+    }
+    
+    return this.quoteRunBlock(runLines.join('\n'));
   }
 
+  formatRunGroup(runType, runs) {
+    const runBlocks = runs.map((run) => this.formatSingleRunBlock(run));
+    return [`### ${runType}`, ...runBlocks].join('\n');
+  }
+
+  
   buildEmptyContainer(raidType, customColor = undefined) {
     const container = new ContainerBuilder();
     
@@ -330,7 +352,7 @@ class ScheduleContainerBuilder {
   }
 
   generateServerHash(serverName, runs, ftVariant = null) {
-    let contentString = `${serverName}:${ftVariant || ''}:`;
+    let contentString = `${serverName}:${ftVariant || ''}:quote-runs-v2:`;
     const currentTime = Date.now();
     const thirtyHoursMs = 30 * 60 * 60 * 1000;
     

@@ -5,11 +5,11 @@ const { ContainerBuilder, TextDisplayBuilder, ButtonBuilder, ButtonStyle, Action
 const logger = require('../../utils/logger');
 const { getServerEmoji } = require('../../config/hostServers');
 const encryptedDb = require('../../config/encryptedDatabase');
-const { buildConfigMenu } = require('../../utils/configMenuBuilder');
-const { showChannelSelection, setupState } = require('../setupInteractions');
+const { buildConfigMenu, isRaidConfigured } = require('../../utils/configMenuBuilder');
+const { showChannelSelection, showFtVariantSelection, setupState } = require('../setupInteractions');
 const serviceLocator = require('../../services/serviceLocator');
 const { getScheduleChannelKey, getEnabledHostsKey } = require('../../utils/raidTypes');
-const { normalizeEnabledFtVariants } = require('../../utils/ftVariants');
+const { FT_CHANNEL_MODES, normalizeEnabledFtVariants, normalizeFtChannelMode, normalizeFtVariantMap } = require('../../utils/ftVariants');
 
 async function showMainConfigMenu(interaction) {
   const guildId = interaction.guild.id;
@@ -61,16 +61,27 @@ async function showRaidConfig(interaction, raidType, useEditReply = false) {
   const channelKey = getScheduleChannelKey(raidType);
   const hostsKey = getEnabledHostsKey(raidType);
   
-  if (!config[channelKey] || !config[hostsKey]) {
+  if (!isRaidConfigured(config, raidType)) {
     const state = {
       selectedRaidTypes: [raidType],
       channels: {},
       hosts: {},
       returnToConfig: true
     };
+
+    if (raidType === 'FT') {
+      state.ftVariants = normalizeEnabledFtVariants(config.enabled_ft_variants);
+      state.ftChannelMode = normalizeFtChannelMode(config.ft_channel_mode);
+      state.ftVariantChannels = normalizeFtVariantMap(config.ft_variant_channel_ids);
+    }
+
     setupState.set(interaction.user.id, state);
     
-    await showChannelSelection(interaction, raidType, [raidType]);
+    if (raidType === 'FT') {
+      await showFtVariantSelection(interaction);
+    } else {
+      await showChannelSelection(interaction, raidType, [raidType]);
+    }
     return;
   }
 
@@ -101,7 +112,14 @@ function buildRaidConfigContainer(raidType, enabledHosts, statusMessage = null, 
     }).join('\n') : 'None');
 
   if (raidType === 'FT') {
+    const ftMode = normalizeFtChannelMode(config.ft_channel_mode);
     configText += `\n\n**Enabled FT Raids:**\n${normalizeEnabledFtVariants(config.enabled_ft_variants).join(', ')}`;
+    configText += `\n\n**FT Channel Layout:**\n${ftMode === FT_CHANNEL_MODES.Separate ? 'Separate Channels' : 'Shared Channel'}`;
+    if (ftMode === FT_CHANNEL_MODES.Separate) {
+      const variantChannels = normalizeFtVariantMap(config.ft_variant_channel_ids);
+      configText += `\nBlood: ${variantChannels.Blood ? `<#${variantChannels.Blood}>` : 'Not set'}`;
+      configText += `\nMagic: ${variantChannels.Magic ? `<#${variantChannels.Magic}>` : 'Not set'}`;
+    }
   }
 
   configText += `\n\nUse the buttons below to modify settings.`;
@@ -126,6 +144,20 @@ function buildRaidConfigContainer(raidType, enabledHosts, statusMessage = null, 
       .setStyle(ButtonStyle.Primary)
     : null;
 
+  const changeLayoutButton = raidType === 'FT'
+    ? new ButtonBuilder()
+      .setCustomId('config_change_ft_channel_mode')
+      .setLabel('Change FT Layout')
+      .setStyle(ButtonStyle.Primary)
+    : null;
+
+  const changeFtChannelsButton = raidType === 'FT' && normalizeFtChannelMode(config.ft_channel_mode) === FT_CHANNEL_MODES.Separate
+    ? new ButtonBuilder()
+      .setCustomId('config_change_ft_channels')
+      .setLabel('Change FT Channels')
+      .setStyle(ButtonStyle.Primary)
+    : null;
+
   const regenerateButton = new ButtonBuilder()
     .setCustomId(`config_regenerate_raid_${raidType.toLowerCase()}`)
     .setLabel('Regenerate Schedule')
@@ -137,8 +169,11 @@ function buildRaidConfigContainer(raidType, enabledHosts, statusMessage = null, 
     .setStyle(ButtonStyle.Secondary);
 
   const primaryButtons = raidType === 'FT'
-    ? [changeHostsButton, changeVariantsButton, regenerateButton]
+    ? [changeHostsButton, changeVariantsButton, changeLayoutButton, regenerateButton]
     : [changeHostsButton, regenerateButton];
+  if (changeFtChannelsButton) {
+    primaryButtons.splice(3, 0, changeFtChannelsButton);
+  }
 
   container.addActionRowComponents(
     new ActionRowBuilder().addComponents(...primaryButtons)

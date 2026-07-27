@@ -20,9 +20,15 @@ CREATE TABLE IF NOT EXISTS na_bot_server_configs (
   schedule_channel_ft VARCHAR(20) DEFAULT NULL,
   enabled_hosts_ft JSONB DEFAULT NULL,
   enabled_ft_variants JSONB DEFAULT NULL,
+  ft_channel_mode TEXT DEFAULT NULL,
+  ft_variant_channel_ids JSONB DEFAULT NULL,
+  ft_variant_overview_ids JSONB DEFAULT NULL,
+  ft_variant_message_ids JSONB DEFAULT NULL,
   schedule_message_ft JSONB DEFAULT NULL,
   schedule_overview_ft VARCHAR(20) DEFAULT NULL,
   schedule_color_ft INTEGER DEFAULT NULL,
+  schedule_color_ft_blood INTEGER DEFAULT -2,
+  schedule_color_ft_magic INTEGER DEFAULT -2,
   
   -- DRS configuration
   schedule_channel_drs VARCHAR(20) DEFAULT NULL,
