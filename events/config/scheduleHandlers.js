@@ -111,9 +111,9 @@ async function regenerateRaidSchedule(interaction, raidType) {
     const isSameChannel = interaction.channelId === scheduleChannelId;
 
     if (isSameChannel) {
-      await handleSameChannelRegenerate(interaction, updateManager, guildId, raidType, enabledHosts);
+      await handleSameChannelRegenerate(interaction, updateManager, guildId, raidType, enabledHosts, config);
     } else {
-      await handleDifferentChannelRegenerate(interaction, updateManager, guildId, raidType, enabledHosts);
+      await handleDifferentChannelRegenerate(interaction, updateManager, guildId, raidType, enabledHosts, config);
     }
 
   } catch (error) {
@@ -147,7 +147,7 @@ async function regenerateRaidSchedule(interaction, raidType) {
   }
 }
 
-async function handleSameChannelRegenerate(interaction, updateManager, guildId, raidType, enabledHosts) {
+async function handleSameChannelRegenerate(interaction, updateManager, guildId, raidType, enabledHosts, config) {
   await interaction.deferUpdate();
   
   const result = await updateManager.regenerateSchedule(guildId, raidType);
@@ -177,7 +177,8 @@ async function handleSameChannelRegenerate(interaction, updateManager, guildId, 
 
     setTimeout(async () => {
       try {
-        const container = buildRaidConfigContainer(raidType, enabledHosts);
+        const latestConfig = await encryptedDb.getServerConfig(guildId);
+        const container = buildRaidConfigContainer(raidType, enabledHosts, null, latestConfig || config);
         await interaction.webhook.editMessage(successMessage.id, {
           components: [container],
           flags: 1 << 15
@@ -198,10 +199,10 @@ async function handleSameChannelRegenerate(interaction, updateManager, guildId, 
   }
 }
 
-async function handleDifferentChannelRegenerate(interaction, updateManager, guildId, raidType, enabledHosts) {
+async function handleDifferentChannelRegenerate(interaction, updateManager, guildId, raidType, enabledHosts, config) {
   await interaction.deferUpdate();
 
-  const buildingContainer = buildRaidConfigContainer(raidType, enabledHosts, '*Building...*');
+  const buildingContainer = buildRaidConfigContainer(raidType, enabledHosts, '*Building...*', config);
   await interaction.editReply({
     components: [buildingContainer],
     flags: 1 << 15
@@ -210,7 +211,8 @@ async function handleDifferentChannelRegenerate(interaction, updateManager, guil
   const result = await updateManager.regenerateSchedule(guildId, raidType);
 
   if (result.success) {
-    const successContainer = buildRaidConfigContainer(raidType, enabledHosts, '*✅ Success*');
+    const latestConfig = await encryptedDb.getServerConfig(guildId);
+    const successContainer = buildRaidConfigContainer(raidType, enabledHosts, '*✅ Success*', latestConfig || config);
     await interaction.editReply({
       components: [successContainer],
       flags: 1 << 15
@@ -222,7 +224,8 @@ async function handleDifferentChannelRegenerate(interaction, updateManager, guil
       user: interaction.user.tag
     });
   } else {
-    const errorContainer = buildRaidConfigContainer(raidType, enabledHosts, `*❌ Error: ${result.error}*`);
+    const latestConfig = await encryptedDb.getServerConfig(guildId);
+    const errorContainer = buildRaidConfigContainer(raidType, enabledHosts, `*Error: ${result.error}*`, latestConfig || config);
     await interaction.editReply({
       components: [errorContainer],
       flags: 1 << 15
@@ -230,7 +233,8 @@ async function handleDifferentChannelRegenerate(interaction, updateManager, guil
 
     setTimeout(async () => {
       try {
-        const finalContainer = buildRaidConfigContainer(raidType, enabledHosts);
+        const latestConfig = await encryptedDb.getServerConfig(guildId);
+        const finalContainer = buildRaidConfigContainer(raidType, enabledHosts, null, latestConfig || config);
         await interaction.editReply({
           components: [finalContainer],
           flags: 1 << 15

@@ -20,7 +20,10 @@ const HOST_SERVERS = {
       'BA': 'https://discord.com/channels/544997776992501761/994728673133473812',
       'FT': 'https://discord.com/channels/544997776992501761/1377521610495361054',
       'DRS': 'https://discord.com/channels/544997776992501761/994802544662564904'
-    }
+    },
+    authorPostChannels: {
+      'FT': ['1507462295037677618'],
+    },
   },
   'CAFE': {
     guildId: '750103971187654736',
@@ -102,7 +105,10 @@ const HOST_SERVERS = {
       'BA': 'https://discord.com/channels/1028110201968132116/1029102392601497682',
       'FT': 'https://discord.com/channels/1028110201968132116/1350184451979743362',
       'DRS': 'https://discord.com/channels/1028110201968132116/1029102476156215307'
-    }
+    },
+    authorPostChannels: {
+      'FT': ['1379450403715940443'],
+    },
   },
   'Lego Steppers': {
     guildId: '818478021563908116',
@@ -220,6 +226,28 @@ function getGuildId(serverName) {
   return HOST_SERVERS[serverName]?.guildId || null;
 }
 
+function getHostChannelId(serverName, raidType) {
+  return HOST_SERVERS[serverName]?.channels?.[raidType] || null;
+}
+
+function normalizeChannelIds(value) {
+  if (!value) return [];
+  const ids = Array.isArray(value) ? value : [value];
+  return ids
+    .map(channelId => String(channelId || '').trim())
+    .filter(Boolean);
+}
+
+function getAuthorPostChannelIds(serverName, raidType) {
+  const server = HOST_SERVERS[serverName];
+  if (!server) return [];
+
+  return [
+    ...normalizeChannelIds(server.authorPostChannels?.[raidType]),
+    ...normalizeChannelIds(server.authorPostChannels?.all)
+  ];
+}
+
 async function getGuildStats(serverName, client) {
   const guildId = getGuildId(serverName);
   
@@ -304,5 +332,7 @@ module.exports = {
   getServerEmoji,
   isWhitelistedHost,
   getGuildId,
+  getHostChannelId,
+  getAuthorPostChannelIds,
   getGuildStats
 };

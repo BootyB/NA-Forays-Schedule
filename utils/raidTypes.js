@@ -44,7 +44,17 @@ function getBannerImage(raidType) {
   return BANNER_IMAGES[raidType] || null;
 }
 
-function getCalendarId(raidType) {
+function getCalendarId(raidType, options = {}) {
+  if (raidType === 'FT') {
+    const variant = String(options.ftVariant || options.variant || '').trim().toLowerCase();
+    if (variant === 'magic' || variant === 'ftm' || variant === 'ftmex') {
+      return GOOGLE_CALENDAR_IDS.FT_MAGIC || GOOGLE_CALENDAR_IDS.FT || null;
+    }
+    if (variant === 'blood' || variant === 'ftb') {
+      return GOOGLE_CALENDAR_IDS.FT_BLOOD || GOOGLE_CALENDAR_IDS.FT || null;
+    }
+  }
+
   return GOOGLE_CALENDAR_IDS[raidType] || null;
 }
 

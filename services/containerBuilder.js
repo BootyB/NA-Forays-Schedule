@@ -2,12 +2,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 const { ContainerBuilder, TextDisplayBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, MediaGalleryBuilder, MediaGalleryItemBuilder, SeparatorBuilder, SeparatorSpacingSize, StringSelectMenuBuilder, SectionBuilder, ThumbnailBuilder } = require('discord.js');
-const { SPACER_IMAGE_URL, getCalendarLinks, TIMEZONE_OPTIONS } = require('../config/constants');
+const { SPACER_IMAGE_URL, getCalendarLinks, TIMEZONE_OPTIONS, MAX_TEXT_LENGTH } = require('../config/constants');
 const { getServerIcon, getInviteLink, getChannelLink, getGuildStats } = require('../config/hostServers');
 const { hashCodeSchedules } = require('../utils/hashCode');
 const { buildSystemUpdateBlock } = require('../utils/systemUpdate');
-const { DEFAULT_FT_VARIANTS, getFtVariantLabel, normalizeEnabledFtVariants, normalizeFtVariantValue } = require('../utils/ftVariants');
+const { FT_VARIANTS, DEFAULT_FT_VARIANTS, getFtVariantLabel, getFtVariantShortLabel, normalizeEnabledFtVariants, normalizeFtVariantValue } = require('../utils/ftVariants');
 const logger = require('../utils/logger');
+
+const RUN_TEXT_BUDGET_PER_CONTAINER = Math.max(1000, MAX_TEXT_LENGTH - 1000);
+const RUN_COMPONENT_BUDGET_PER_CONTAINER = 28;
+
 const { 
   getRaidTypeName, 
   getRaidTypeColor, 
@@ -35,6 +39,51 @@ function setContainerColor(container, customColor, defaultColor) {
   }
 }
 
+function escapeMarkdown(text) {
+  return String(text).replace(/([\\`*_{}\[\]()#+\-.!|>])/g, '\\$1');
+}
+
+function normalizeDiscordLink(value) {
+  if (!value) return null;
+
+  try {
+    const url = new URL(String(value).trim().replace(/^<|>$/g, ''));
+    if (!/(^|\.)discord(app)?\.com$/i.test(url.hostname)) return null;
+    if (!/^\/channels\/\d{17,20}\/\d{17,20}(\/\d{17,20})?\/?$/.test(url.pathname)) return null;
+    return url.toString();
+  } catch (error) {
+    return null;
+  }
+}
+
+function formatSourceAuthorLabel(text) {
+  return String(text)
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/\[/g, '(')
+    .replace(/\]/g, ')')
+    .trim();
+}
+
+function hasEmoji(text) {
+  return /\p{Extended_Pictographic}/u.test(String(text));
+}
+
+function formatSourceAuthor(run) {
+  const authorUrl = normalizeDiscordLink(run.sourceAuthorUrl);
+  const displayName = authorUrl
+    ? formatSourceAuthorLabel(run.sourceAuthorDisplayName)
+    : escapeMarkdown(run.sourceAuthorDisplayName);
+
+  if (!authorUrl) return displayName;
+
+  // Discord can fail masked links when emoji are inside the link label.
+  if (hasEmoji(displayName)) {
+    return `${displayName} ([Lead Post](${authorUrl}))`;
+  }
+
+  return `[${displayName}](${authorUrl})`;
+}
+
 class ScheduleContainerBuilder {
   constructor(client = null) {
     this.componentCount = 0;
@@ -46,7 +95,7 @@ class ScheduleContainerBuilder {
     
     setContainerColor(container, customColor, getRaidTypeColor(raidType));
 
-    const calendarId = getCalendarId(raidType);
+    const calendarId = getCalendarId(raidType, { ftVariant: options.ftVariant });
     const links = getCalendarLinks(calendarId);
 
     const bannerImage = options.bannerImage !== undefined ? options.bannerImage : getBannerImage(raidType);
@@ -67,21 +116,37 @@ class ScheduleContainerBuilder {
       headerContent = `## ${formatEmoji(emoji)} ${raidName} Schedule\n### Multi-Server ${raidName} Schedule for North American and Materia Data Centers\n`;
     }
     
-    const calendarSection = 
-      `[Add to Google Calendar](${links.gcal}) | [iCal](${links.ical})`;
+    const calendarSection = links
+      ? `[Add to Google Calendar](${links.gcal}) | [iCal](${links.ical})`
+      : '';
 
     container.addTextDisplayComponents(
       new TextDisplayBuilder().setContent(headerContent + calendarSection)
     );
 
-    const timezoneSelect = new StringSelectMenuBuilder()
-      .setCustomId(`timezone_select_${raidType.toLowerCase()}`)
-      .setPlaceholder('View static calendar in your timezone')
-      .addOptions(TIMEZONE_OPTIONS);
+    if (links) {
+      const timezoneSelect = new StringSelectMenuBuilder()
+        .setCustomId(`timezone_select_${raidType.toLowerCase()}${options.ftVariant ? '_' + options.ftVariant.toLowerCase() : ''}`)
+        .setPlaceholder('View calendar by city or timezone')
+        .addOptions(TIMEZONE_OPTIONS);
 
-    container.addActionRowComponents(
-      new ActionRowBuilder().addComponents(timezoneSelect)
-    );
+      container.addActionRowComponents(
+        new ActionRowBuilder().addComponents(timezoneSelect)
+      );
+    } else if (raidType === 'FT' && !options.ftVariant) {
+      const enabledVariants = normalizeEnabledFtVariants(options.enabledFtVariants);
+      const variantSelect = new StringSelectMenuBuilder()
+        .setCustomId('calendar_variant_select_ft')
+        .setPlaceholder('Choose FTB or FTM calendar')
+        .addOptions(enabledVariants.map(variant => ({
+          label: `${getFtVariantShortLabel(variant)} - ${FT_VARIANTS[variant].label}`,
+          value: variant.toLowerCase()
+        })));
+
+      container.addActionRowComponents(
+        new ActionRowBuilder().addComponents(variantSelect)
+      );
+    }
 
     const infoButton = new ButtonBuilder()
       .setCustomId(`schedule_info_${raidType.toLowerCase()}`)
@@ -97,7 +162,43 @@ class ScheduleContainerBuilder {
       new ActionRowBuilder().addComponents(infoButton, serversButton)
     );
 
-    const systemUpdateBlock = buildSystemUpdateBlock();
+    if (Array.isArray(options.pollScopes) && options.pollScopes.length > 0) {
+      container.addSeparatorComponents(
+        new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true)
+      );
+
+      options.pollScopes.forEach((scope, index) => {
+        if (index > 0) {
+          container.addSeparatorComponents(
+            new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(false)
+          );
+        }
+
+        const pollButton = new ButtonBuilder()
+          .setCustomId(scope.customId)
+          .setLabel(scope.label)
+          .setStyle(ButtonStyle.Secondary);
+
+        const headerText = [
+          '### Prog Point Requests',
+          `-# ${scope.participantCount || 0} participants`,
+          `-# Period: ${scope.periodText || 'Unknown'}`
+        ].join('\n');
+
+        container.addSectionComponents(
+          new SectionBuilder()
+            .addTextDisplayComponents(new TextDisplayBuilder().setContent(headerText))
+            .setButtonAccessory(pollButton)
+        );
+
+        container.addMediaGalleryComponents(
+          new MediaGalleryBuilder().addItems(
+            new MediaGalleryItemBuilder().setURL(scope.imageUrl)
+          )
+        );
+      });
+    }
+    const systemUpdateBlock = buildSystemUpdateBlock(raidType);
     if (systemUpdateBlock) {
       container.addSeparatorComponents(
         new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true)
@@ -138,25 +239,15 @@ class ScheduleContainerBuilder {
           if (variantRuns.length === 0) continue;
 
           const containerKey = `${serverName}|${variant}`;
-          const container = await this.buildServerContainer(serverName, variantRuns, raidType, isFirst, customColor, variant);
-          const hash = this.generateServerHash(containerKey, variantRuns, variant);
-          containers.push({
-            container,
-            serverName: containerKey,
-            hash
-          });
+          const entries = await this.buildServerContainerEntries(serverName, variantRuns, raidType, isFirst, customColor, variant, containerKey);
+          containers.push(...entries);
           isFirst = false;
         }
         continue;
       }
 
-      const container = await this.buildServerContainer(serverName, runs, raidType, isFirst, customColor);
-      const hash = this.generateServerHash(serverName, runs);
-      containers.push({
-        container,
-        serverName,
-        hash
-      });
+      const entries = await this.buildServerContainerEntries(serverName, runs, raidType, isFirst, customColor, null, serverName);
+      containers.push(...entries);
       isFirst = false;
     }
 
@@ -169,13 +260,81 @@ class ScheduleContainerBuilder {
     return containers;
   }
 
-  async buildServerContainer(serverName, runs, raidType, isFirst = false, customColor = undefined, ftVariant = null) {
+  splitRunsForContainerBudget(runs) {
+    const chunks = [];
+    let currentRuns = [];
+    let currentTextLength = 0;
+    let currentTypes = new Set();
+
+    for (const run of runs) {
+      const runType = run.Type || 'Unknown';
+      const runTextLength = this.formatSingleRunBlock(run).length;
+      const headingLength = currentTypes.has(runType) ? 0 : `### ${runType}`.length + 1;
+      const nextTextLength = currentTextLength + headingLength + runTextLength + 1;
+      const nextComponentCount = currentRuns.length + currentTypes.size + (currentTypes.has(runType) ? 0 : 1) + 1;
+      const exceedsTextBudget = currentRuns.length > 0 && nextTextLength > RUN_TEXT_BUDGET_PER_CONTAINER;
+      const exceedsComponentBudget = currentRuns.length > 0 && nextComponentCount > RUN_COMPONENT_BUDGET_PER_CONTAINER;
+
+      if (exceedsTextBudget || exceedsComponentBudget) {
+        chunks.push(currentRuns);
+        currentRuns = [];
+        currentTextLength = 0;
+        currentTypes = new Set();
+      }
+
+      const freshHeadingLength = currentTypes.has(runType) ? 0 : `### ${runType}`.length + 1;
+      currentRuns.push(run);
+      currentTextLength += freshHeadingLength + runTextLength + 1;
+      currentTypes.add(runType);
+    }
+
+    if (currentRuns.length > 0) {
+      chunks.push(currentRuns);
+    }
+
+    return chunks.length > 0 ? chunks : [[]];
+  }
+
+  async buildServerContainerEntries(serverName, runs, raidType, isFirst, customColor, ftVariant, baseKey) {
+    const chunks = this.splitRunsForContainerBudget(runs);
+    const entries = [];
+
+    if (chunks.length > 1) {
+      logger.debug('Split schedule server container by display text budget', {
+        serverName,
+        raidType,
+        ftVariant,
+        runCount: runs.length,
+        containerCount: chunks.length,
+        textBudget: RUN_TEXT_BUDGET_PER_CONTAINER,
+        componentBudget: RUN_COMPONENT_BUDGET_PER_CONTAINER
+      });
+    }
+
+    for (let index = 0; index < chunks.length; index++) {
+      const partInfo = chunks.length > 1
+        ? { index: index + 1, count: chunks.length }
+        : null;
+      const container = await this.buildServerContainer(serverName, chunks[index], raidType, isFirst && index === 0, customColor, ftVariant, partInfo);
+      const entryKey = chunks.length > 1 ? `${baseKey}#${index + 1}` : baseKey;
+      entries.push({
+        container,
+        serverName: entryKey,
+        hash: this.generateServerHash(entryKey, chunks[index], ftVariant)
+      });
+    }
+
+    return entries;
+  }
+
+  async buildServerContainer(serverName, runs, raidType, isFirst = false, customColor = undefined, ftVariant = null, partInfo = null) {
     const container = new ContainerBuilder();
     
     setContainerColor(container, customColor, getRaidTypeColor(raidType));
 
     const ftVariantLabel = raidType === 'FT' && ftVariant ? getFtVariantLabel(ftVariant) : null;
-    let headerContent = `## ${getChannelLink(serverName, raidType)}${ftVariantLabel ? ` - ${ftVariantLabel}` : ''}\n`;
+    const partLabel = partInfo ? ` (${partInfo.index}/${partInfo.count})` : '';
+    let headerContent = `## ${getChannelLink(serverName, raidType)}${ftVariantLabel ? ` - ${ftVariantLabel}` : ''}${partLabel}\n`;
     
     const guildStats = await getGuildStats(serverName, this.client);    
     const serverIcon = guildStats?.icon || await getServerIcon(serverName, this.client);
@@ -306,11 +465,15 @@ class ScheduleContainerBuilder {
       isNew = (currentTime - createdTime) < thirtyHoursMs;
     }
 
-    const newBadge = isNew ? '🆕 ' : '';
+    const newBadge = isNew ? '\u{1F195} ' : '';
     const runLines = [`${newBadge}<t:${timestamp}:F>`];
     
     if (run.RunDC) {
       runLines.push(`Data Center: ${run.RunDC}`);
+    }
+
+    if (run.sourceAuthorDisplayName) {
+      runLines.push(`Posted by: ${formatSourceAuthor(run)}`);
     }
     
     if (run.referenceLink) {
@@ -352,7 +515,7 @@ class ScheduleContainerBuilder {
   }
 
   generateServerHash(serverName, runs, ftVariant = null) {
-    let contentString = `${serverName}:${ftVariant || ''}:quote-runs-v2:`;
+    let contentString = `${serverName}:${ftVariant || ''}:quote-runs-v8:`;
     const currentTime = Date.now();
     const thirtyHoursMs = 30 * 60 * 60 * 1000;
     
@@ -364,7 +527,7 @@ class ScheduleContainerBuilder {
           : new Date(run.TimeStamp).getTime();
         isNew = (currentTime - createdTime) < thirtyHoursMs;
       }
-      contentString += `${run.ID}|${run.Type}|${run.FTRaidVariant || ''}|${run.Start}|${run.RunDC}|${isNew ? 'NEW' : ''}|`;
+      contentString += `${run.ID}|${run.Type}|${run.FTRaidVariant || ''}|${run.Start}|${run.RunDC}|${run.sourceAuthorId || ''}|${run.sourceAuthorDisplayName || ''}|${run.sourceAuthorUrl || ''}|${isNew ? 'NEW' : ''}|`;
     }
     return hashCodeSchedules(contentString);
   }

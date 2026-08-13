@@ -1,14 +1,15 @@
-
 // SPDX-FileCopyrightText: 2024-2026 BootyB
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 const { google } = require('googleapis');
 const logger = require('../utils/logger');
+const { normalizeFtVariantValue } = require('../utils/ftVariants');
 
 class CalendarService {
   constructor(pool) {
     this.pool = pool;
     
+    // Initialize Google OAuth2 client
     this.oAuth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
@@ -24,14 +25,20 @@ class CalendarService {
     this.calendarIds = {
       BA: process.env.BA_CALENDAR_ID,
       DRS: process.env.DRS_CALENDAR_ID,
-      FT: process.env.FT_CALENDAR_ID
+      FT_BLOOD: process.env.FTB_CALENDAR_ID,
+      FT_MAGIC: process.env.FTM_CALENDAR_ID,
     };
     
     logger.info('Calendar service initialized');
   }
 
   getCalendarId(run) {
-    if (run.FT) return this.calendarIds.FT;
+    if (run.FT) {
+      const variant = normalizeFtVariantValue(run.FTRaidVariant);
+      return variant === 'Magic'
+        ? this.calendarIds.FT_MAGIC
+        : this.calendarIds.FT_BLOOD;
+    }
     if (run.DRS) return this.calendarIds.DRS;
     return this.calendarIds.BA;
   }
@@ -41,7 +48,7 @@ class CalendarService {
     
     try {
       const rows = await this.pool.unsafe(
-        `SELECT "ID", "Type", "Start", "ServerName", "RunDC", "DRS", "FT", "referenceLink" 
+        `SELECT "ID", "Type", "Start", "ServerName", "RunDC", "DRS", "FT", "referenceLink", "FTRaidVariant" 
          FROM "${tableName}" 
          WHERE "isPosted" = 0 
            AND "Start" > $1 
@@ -72,7 +79,7 @@ class CalendarService {
 
   async createCalendarEvent(run) {
     const startDateTime = new Date(Number(run.Start));
-    const endDateTime = new Date(Number(run.Start) + 7200000);
+    const endDateTime = new Date(Number(run.Start) + 7200000); // 2 hours
     
     const event = {
       summary: `${run.ServerName} - ${run.RunDC} - ${run.Type}`,
@@ -107,7 +114,7 @@ class CalendarService {
     
     try {
       const rows = await this.pool.unsafe(
-        `SELECT "ID", "Type", "Start", "ServerName", "RunDC", "DRS", "FT", google_event_id, "referenceLink"
+        `SELECT "ID", "Type", "Start", "ServerName", "RunDC", "DRS", "FT", google_event_id, "referenceLink", "FTRaidVariant"
          FROM "${tableName}" 
          WHERE "isPosted" = 1 
            AND "isUpdated" = 1 
@@ -146,7 +153,7 @@ class CalendarService {
 
   async updateCalendarEvent(run) {
     const startDateTime = new Date(Number(run.Start));
-    const endDateTime = new Date(Number(run.Start) + 7200000);
+    const endDateTime = new Date(Number(run.Start) + 7200000); // 2 hours
     
     const event = {
       summary: `${run.ServerName} - ${run.RunDC} - ${run.Type}`,
@@ -175,7 +182,7 @@ class CalendarService {
     
     try {
       const rows = await this.pool.unsafe(
-        `SELECT "ID", "Start", "DRS", "FT", google_event_id, "isCancelled" 
+        `SELECT "ID", "Start", "DRS", "FT", google_event_id, "isCancelled", "FTRaidVariant" 
          FROM "${tableName}" 
          WHERE "isPosted" = 1 
            AND "isDeleted" = 0 
@@ -187,8 +194,8 @@ class CalendarService {
       let deleted = 0;
 
       for (const row of rows) {
-        const eventEndTime = Number(row.Start) + 7200000;
-        const shouldDelete = row.isCancelled || currentTime > eventEndTime + 10800000;
+        const eventEndTime = Number(row.Start) + 7200000; // 2 hours
+        const shouldDelete = row.isCancelled || currentTime > eventEndTime + 10800000; // 3 hours after end
         
         if (shouldDelete) {
           try {

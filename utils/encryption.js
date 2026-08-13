@@ -74,6 +74,17 @@ function decryptJSON(encryptedJSON) {
   }
 }
 
+function hashDiscordId(value, scope = 'discord') {
+  if (!value) return null;
+
+  return crypto.createHmac('sha256', keyBuffer)
+    .update(`${scope}:${value}`)
+    .digest('hex');
+}
+
+function hashUserId(userId) {
+  return hashDiscordId(userId, 'user');
+}
 function hashGuildId(guildId) {
   if (!guildId) return null;
   
@@ -87,6 +98,8 @@ module.exports = {
   decrypt,
   encryptJSON,
   decryptJSON,
+  hashDiscordId,
+  hashUserId,
   hashGuildId,
   DEV_SERVER_ID
 };

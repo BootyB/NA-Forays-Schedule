@@ -176,6 +176,7 @@ class ScheduleManager {
         WHERE "Start" > $1
           AND "Start" < $2
           AND "isCancelled" = 0
+          AND "isDeleted" = 0
           AND ${raidTypeFilter}
           AND "ServerName" = ANY(${arrayLiteral})
         ORDER BY "ServerName", "Start" ASC
@@ -213,7 +214,7 @@ class ScheduleManager {
 
       const queryDuration = Date.now() - queryStartTime;
       const totalDuration = Date.now() - startTime;
-
+      
       const logLevel = queryDuration > 1000 ? 'info' : 'debug';
       logger[logLevel]('Fetched schedule from database', {
         raidType,
@@ -349,7 +350,9 @@ class ScheduleManager {
       
       const query = `
         UPDATE "${tableName}"
-        SET discord_synced = 1
+        SET
+          discord_synced = 1,
+          "isUpdated" = CASE WHEN "isDeleted" = 1 THEN 0 ELSE "isUpdated" END
         WHERE (discord_synced = 0 OR "isUpdated" = 1)
           AND "Start"::BIGINT > $1
           AND "isCancelled" = 0
