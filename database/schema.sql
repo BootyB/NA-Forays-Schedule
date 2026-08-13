@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS na_bot_server_configs (
   schedule_color_ft INTEGER DEFAULT NULL,
   schedule_color_ft_blood INTEGER DEFAULT -2,
   schedule_color_ft_magic INTEGER DEFAULT -2,
+  enabled_polls JSONB DEFAULT NULL,
   
   -- DRS configuration
   schedule_channel_drs VARCHAR(20) DEFAULT NULL,
@@ -47,6 +48,8 @@ CREATE TABLE IF NOT EXISTS na_bot_server_configs (
 
 CREATE INDEX IF NOT EXISTS idx_setup_complete ON na_bot_server_configs(setup_complete);
 CREATE INDEX IF NOT EXISTS idx_auto_update ON na_bot_server_configs(auto_update);
+
+ALTER TABLE na_bot_server_configs ADD COLUMN IF NOT EXISTS enabled_polls JSONB DEFAULT NULL;
 
 -- Trigger to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -99,3 +102,36 @@ INSERT INTO na_bot_whitelisted_hosts (server_name, added_by, is_active) VALUES
 ('ABBA+', 'system', true),
 ('Field Op Enjoyers', 'system', true)
 ON CONFLICT (server_name) DO UPDATE SET is_active = true;
+-- Poll responses table used by raid-aware poll results
+CREATE TABLE IF NOT EXISTS public.poll_responses (
+  id SERIAL NOT NULL,
+  poll_id VARCHAR(50) NOT NULL,
+  week_id VARCHAR(10) NOT NULL,
+  user_id VARCHAR(20) NOT NULL,
+  username VARCHAR(255) NOT NULL,
+  selections TEXT NOT NULL,
+  timestamp TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT poll_responses_pkey PRIMARY KEY (id),
+  CONSTRAINT poll_responses_poll_id_user_id_week_id_key UNIQUE (poll_id, user_id, week_id)
+);
+
+CREATE INDEX IF NOT EXISTS poll_responses_week_id_idx ON public.poll_responses USING btree (week_id);
+
+-- Author post/thread cache for host forum lead links
+
+CREATE TABLE IF NOT EXISTS public.na_bot_author_post_threads (
+  server_name VARCHAR(100) NOT NULL,
+  raid_type VARCHAR(16) NOT NULL,
+  guild_id VARCHAR(20) NOT NULL,
+  channel_id VARCHAR(20) NOT NULL,
+  author_id_hash VARCHAR(64) NOT NULL,
+  thread_id_encrypted TEXT NOT NULL,
+  last_seen_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (server_name, raid_type, guild_id, channel_id, author_id_hash)
+);
+
+CREATE INDEX IF NOT EXISTS na_bot_author_post_threads_author_id_hash_idx
+  ON public.na_bot_author_post_threads (author_id_hash);
+

@@ -9,6 +9,7 @@ const { showHostChangeMenu, saveHostChanges } = require('./hostHandlers');
 const { toggleAutoUpdate, refreshSchedules, regenerateRaidSchedule } = require('./scheduleHandlers');
 const { showResetConfirmation, resetConfiguration } = require('./resetHandlers');
 const { showColorSettingsModal, saveColorSettings } = require('./colorHandlers');
+const { showPollChangeMenu, savePollChanges } = require('./pollHandlers');
 const { showFtVariantChangeMenu, saveFtVariantChanges, saveCurrentFtVariantChanges, showFtChannelModeMenu, saveFtChannelMode, showFtVariantChannelChangeMenu, handleFtVariantChannelSelection, saveFtVariantChannelChanges } = require('./ftVariantHandlers');
 
 async function handleConfigInteraction(interaction) {
@@ -95,6 +96,26 @@ async function handleConfigInteraction(interaction) {
     await saveFtVariantChannelChanges(interaction);
     return;
   }
+  if (customId.startsWith('config_change_polls_')) {
+    const raidType = extractRaidType(customId);
+    if (!isValidRaidType(raidType)) {
+      await interaction.reply({ content: '? Invalid raid type.', flags: 64 });
+      return;
+    }
+    await showPollChangeMenu(interaction, raidType);
+    return;
+  }
+
+  if (customId.startsWith('config_save_polls_')) {
+    const raidType = extractRaidType(customId);
+    if (!isValidRaidType(raidType)) {
+      await interaction.reply({ content: '? Invalid raid type.', flags: 64 });
+      return;
+    }
+    await savePollChanges(interaction, raidType);
+    return;
+  }
+  // Regenerate raid schedule
   if (customId.startsWith('config_regenerate_raid_')) {
     const raidType = extractRaidType(customId);
     if (!isValidRaidType(raidType)) {
@@ -154,5 +175,7 @@ module.exports = {
   saveFtChannelMode,
   showFtVariantChannelChangeMenu,
   handleFtVariantChannelSelection,
-  saveFtVariantChannelChanges
+  saveFtVariantChannelChanges,
+  showPollChangeMenu,
+  savePollChanges
 };

@@ -9,6 +9,7 @@ const { buildConfigMenu, isRaidConfigured } = require('../../utils/configMenuBui
 const { showChannelSelection, showFtVariantSelection, setupState } = require('../setupInteractions');
 const serviceLocator = require('../../services/serviceLocator');
 const { getScheduleChannelKey, getEnabledHostsKey } = require('../../utils/raidTypes');
+const { getPollsForRaidConfig, getEnabledPollIdsForRaid } = require('../../services/pollConfig');
 const { FT_CHANNEL_MODES, normalizeEnabledFtVariants, normalizeFtChannelMode, normalizeFtVariantMap } = require('../../utils/ftVariants');
 
 async function showMainConfigMenu(interaction) {
@@ -158,6 +159,11 @@ function buildRaidConfigContainer(raidType, enabledHosts, statusMessage = null, 
       .setStyle(ButtonStyle.Primary)
     : null;
 
+  const changePollsButton = new ButtonBuilder()
+    .setCustomId(`config_change_polls_${raidType.toLowerCase()}`)
+    .setLabel('Change Polls')
+    .setStyle(ButtonStyle.Primary);
+
   const regenerateButton = new ButtonBuilder()
     .setCustomId(`config_regenerate_raid_${raidType.toLowerCase()}`)
     .setLabel('Regenerate Schedule')
@@ -180,7 +186,7 @@ function buildRaidConfigContainer(raidType, enabledHosts, statusMessage = null, 
   );
   
   container.addActionRowComponents(
-    new ActionRowBuilder().addComponents(backButton)
+    new ActionRowBuilder().addComponents(changePollsButton, backButton)
   );
 
   return container;
